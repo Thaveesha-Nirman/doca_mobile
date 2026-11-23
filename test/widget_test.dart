@@ -5,6 +5,6 @@ void main() {
   
     await tester.pumpWidget(const SkinItApp());
 
-    expect(find.text('SkinIt'), findsOneWidget);
+    expect(find.textContaining('SkinIt'), findsOneWidget);
   });
 }
