@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skinit_mobile/main.dart'; 
-void main() {
-  testWidgets('App smoke test', (WidgetTester tester) async {
-  
-    await tester.pumpWidget(const SkinItApp());
+import 'package:skinit_mobile/app/app.dart';
 
-    expect(find.textContaining('SkinIt'), findsOneWidget);
+void main() {
+  testWidgets('Doca app smoke test', (WidgetTester tester) async {
+    await tester.pumpWidget(const DocaApp());
+
+    expect(find.text('Doca'), findsOneWidget);
   });
 }
