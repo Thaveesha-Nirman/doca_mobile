@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../core/theme/app_theme.dart';
+import '../features/navigation/presentation/screens/main_navigation_screen.dart';
 
 class DocaApp extends StatelessWidget {
   const DocaApp({super.key});
@@ -10,18 +11,11 @@ class DocaApp extends StatelessWidget {
     return MaterialApp(
       title: 'Doca',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            'Doca',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        overscroll: false,
       ),
+      theme: AppTheme.dark,
+      home: const MainNavigationScreen(),
     );
   }
 }
