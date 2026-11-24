@@ -1,3 +1,5 @@
+import '../../../explore/presentation/screens/explore_screen.dart';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../../../home/presentation/screens/home_screen.dart';
@@ -22,11 +24,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),
-    _PlaceholderScreen(
-      icon: Icons.explore_outlined,
-      title: 'Explore',
-      description: 'Discover communities, topics, and helpful stories.',
-    ),
+    ExploreScreen(),
     _PlaceholderScreen(
       icon: Icons.center_focus_strong_rounded,
       title: 'Private skin scan',
