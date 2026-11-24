@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../core/theme/app_theme.dart';
@@ -11,8 +13,15 @@ class DocaApp extends StatelessWidget {
     return MaterialApp(
       title: 'Doca',
       debugShowCheckedModeBanner: false,
+
       scrollBehavior: const MaterialScrollBehavior().copyWith(
         overscroll: false,
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.trackpad,
+        },
       ),
       theme: AppTheme.dark,
       home: const MainNavigationScreen(),

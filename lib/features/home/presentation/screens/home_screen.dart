@@ -3,77 +3,93 @@ import 'package:material_ui/material_ui.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../widgets/community_post_card.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  static const List<String> _filters = [
+    'For You',
+    'Recent',
+    'Most Helpful',
+    'Healed Stories',
+    'Nearby Alerts',
+  ];
+
+  String _selectedFilter = 'For You';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
           physics: const ClampingScrollPhysics(),
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.xxl,
+          ),
           children: [
-            _buildHeader(context),
-            const SizedBox(height: AppSpacing.xxl),
-            _buildScanCard(context),
-            const SizedBox(height: AppSpacing.xxl),
-            const _SectionTitle(
-              title: 'Quick actions',
-              subtitle: 'Everything you need in one place',
+            _buildHeader(),
+            const SizedBox(height: AppSpacing.lg),
+            _buildSearchField(),
+            const SizedBox(height: AppSpacing.md),
+            const _PrivacyNotice(),
+            const SizedBox(height: AppSpacing.xl),
+            _buildFeedHeading(),
+            const SizedBox(height: AppSpacing.md),
+            _buildFilters(),
+            const SizedBox(height: AppSpacing.lg),
+            const _CreatePostPrompt(),
+            const SizedBox(height: AppSpacing.lg),
+            const CommunityPostCard(
+              alias: 'CalmOtter47',
+              timeAgo: '12 min ago',
+              topic: 'Skin irritation',
+              status: 'Asking',
+              title: 'Has anyone experienced something similar?',
+              body:
+                  'I noticed some mild redness after changing my skincare '
+                  'routine. I stopped using the new product for now. Has '
+                  'anyone had a similar experience?',
+              votes: 24,
+              comments: 8,
             ),
             const SizedBox(height: AppSpacing.md),
-            const Row(
-              children: [
-                Expanded(
-                  child: _QuickActionCard(
-                    icon: Icons.auto_awesome_rounded,
-                    label: 'Skin Scan',
-                    actionName: 'skin scan',
-                  ),
-                ),
-                SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _QuickActionCard(
-                    icon: Icons.explore_rounded,
-                    label: 'Explore',
-                    actionName: 'explore',
-                  ),
-                ),
-                SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _QuickActionCard(
-                    icon: Icons.timeline_rounded,
-                    label: 'Journey',
-                    actionName: 'journey',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xxl),
-            const _SectionTitle(
-              title: 'Your journey',
-              subtitle: 'Track your latest skin-care progress',
+            const CommunityPostCard(
+              alias: 'QuietMoon22',
+              timeAgo: '1 hr ago',
+              topic: 'Recovery journey',
+              status: 'Ongoing',
+              title: 'Week two of tracking my skin changes',
+              body:
+                  'I have been recording my symptoms and keeping my routine '
+                  'simple. The irritation looks calmer today, but I am still '
+                  'monitoring it carefully.',
+              votes: 67,
+              comments: 19,
+              isSensitive: true,
             ),
             const SizedBox(height: AppSpacing.md),
-            _buildJourneyCard(context),
-            const SizedBox(height: AppSpacing.xxl),
-            const _SectionTitle(
-              title: 'Explore today',
-              subtitle: 'Helpful content selected for you',
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const _ExploreTile(
-              icon: Icons.water_drop_rounded,
-              title: 'Daily skin hydration',
-              subtitle: 'Simple habits for healthier-looking skin',
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const _ExploreTile(
-              icon: Icons.wb_sunny_rounded,
-              title: 'Sun protection guide',
-              subtitle: 'Learn how to protect your skin every day',
+            const CommunityPostCard(
+              alias: 'BlueLotus81',
+              timeAgo: '3 hr ago',
+              topic: 'Healed story',
+              status: 'Healed',
+              title: 'Patience and a simple routine helped me',
+              body:
+                  'After speaking with a qualified professional and following '
+                  'the recommended routine, my skin has improved. Sharing this '
+                  'to encourage anyone who is still recovering.',
+              votes: 142,
+              comments: 31,
             ),
           ],
         ),
@@ -81,254 +97,225 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader() {
     return Row(
       children: [
-        Expanded(
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.35),
+            ),
+          ),
+          child: const Icon(
+            Icons.health_and_safety_rounded,
+            color: AppColors.primary,
+            size: 25,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Good evening',
-                style: Theme.of(context).textTheme.bodyMedium
-                    ?.copyWith(color: AppColors.textSecondary),
+                'Doca',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 23,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-              const SizedBox(height: AppSpacing.xs),
+              SizedBox(height: 2),
               Text(
-                'Welcome to Doca',
-                style: Theme.of(context).textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-        ),
-        Material(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            onTap: () => debugPrint('Home: profile tapped'),
-            child: const SizedBox(
-              width: 48,
-              height: 48,
-              child: Icon(
-                Icons.person_outline_rounded,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildScanCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.face_retouching_natural_rounded,
-            size: 36,
-            color: AppColors.textPrimary,
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          Text(
-            'Understand your skin better',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Start a guided scan and receive a simple overview of your skin.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textPrimary.withValues(alpha: 0.85),
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          FilledButton.icon(
-            onPressed: () => debugPrint('Home: start scan tapped'),
-            icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text('Start skin scan'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.textPrimary,
-              foregroundColor: AppColors.background,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildJourneyCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: const Icon(
-                  Icons.insights_rounded,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Weekly progress',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Complete your next check-in',
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                onPressed: () => debugPrint('Home: journey tapped'),
-                icon: const Icon(Icons.arrow_forward_rounded),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            child: const LinearProgressIndicator(
-              value: 0.65,
-              minHeight: 8,
-              backgroundColor: AppColors.surfaceElevated,
-              color: AppColors.secondary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            '65% completed',
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge
-              ?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodyMedium
-              ?.copyWith(color: AppColors.textSecondary),
-        ),
-      ],
-    );
-  }
-}
-
-class _QuickActionCard extends StatelessWidget {
-  const _QuickActionCard({
-    required this.icon,
-    required this.label,
-    required this.actionName,
-  });
-
-  final IconData icon;
-  final String label;
-  final String actionName;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        onTap: () => debugPrint('Home: $actionName tapped'),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.lg,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: AppColors.secondary, size: 28),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                label,
+                'A safer space for your skin journey',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
             ],
           ),
         ),
+        IconButton(
+          onPressed: () {},
+          tooltip: 'Notifications',
+          icon: const Icon(
+            Icons.notifications_none_rounded,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceElevated,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Icon(
+            Icons.person_outline_rounded,
+            color: AppColors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      readOnly: true,
+      onTap: () {},
+      style: const TextStyle(color: AppColors.textPrimary),
+      decoration: InputDecoration(
+        hintText: 'Search symptoms, topics, or stories',
+        hintStyle: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 14,
+        ),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: AppColors.textSecondary,
+        ),
+        suffixIcon: const Icon(
+          Icons.tune_rounded,
+          color: AppColors.textSecondary,
+        ),
+        filled: true,
+        fillColor: AppColors.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.md,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderSide: const BorderSide(color: AppColors.primary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeedHeading() {
+    return const Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Community',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        Text(
+          'Anonymous feed',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilters() {
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const ClampingScrollPhysics(),
+        itemCount: _filters.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, index) {
+          final filter = _filters[index];
+          final isSelected = filter == _selectedFilter;
+
+          return InkWell(
+            onTap: () {
+              setState(() {
+                _selectedFilter = filter;
+              });
+            },
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.border,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                filter,
+                style: TextStyle(
+                  color: isSelected
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 }
 
-class _ExploreTile extends StatelessWidget {
-  const _ExploreTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
+class _PrivacyNotice extends StatelessWidget {
+  const _PrivacyNotice();
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.secondary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.22)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield_outlined, color: AppColors.secondary, size: 20),
+          SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'You’re in control of what you share. Your real name and exact '
+              'location are never shown publicly.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreatePostPrompt extends StatelessWidget {
+  const _CreatePostPrompt();
 
   @override
   Widget build(BuildContext context) {
@@ -336,48 +323,36 @@ class _ExploreTile extends StatelessWidget {
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(AppRadius.lg),
       child: InkWell(
+        onTap: () {},
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        onTap: () => debugPrint('Home: $title tapped'),
         child: Container(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.lg),
             border: Border.all(color: AppColors.border),
           ),
-          child: Row(
+          child: const Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.secondary.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.surfaceElevated,
+                child: Icon(
+                  Icons.person_outline_rounded,
+                  color: AppColors.textSecondary,
                 ),
-                child: Icon(icon, color: AppColors.secondary),
               ),
-              const SizedBox(width: AppSpacing.md),
+              SizedBox(width: AppSpacing.md),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: AppColors.textSecondary),
-                    ),
-                  ],
+                child: Text(
+                  'Share a question or recovery update…',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
                 ),
               ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.textSecondary,
-              ),
+              SizedBox(width: AppSpacing.sm),
+              Icon(Icons.edit_outlined, color: AppColors.primary, size: 21),
             ],
           ),
         ),
