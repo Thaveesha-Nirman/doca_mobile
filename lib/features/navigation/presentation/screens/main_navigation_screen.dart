@@ -1,4 +1,5 @@
 import '../../../explore/presentation/screens/explore_screen.dart';
+import '../../../journey/presentation/screens/journey_screen.dart';
 
 import 'package:material_ui/material_ui.dart';
 
@@ -27,11 +28,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     HomeScreen(),
     ExploreScreen(),
     ScanScreen(),
-    _PlaceholderScreen(
-      icon: Icons.timeline_rounded,
-      title: 'Journey',
-      description: 'Track your private skin-health journey.',
-    ),
+    JourneyScreen(),
     _PlaceholderScreen(
       icon: Icons.chat_bubble_outline_rounded,
       title: 'Inbox',
