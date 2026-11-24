@@ -1,5 +1,6 @@
 import '../../../explore/presentation/screens/explore_screen.dart';
 import '../../../journey/presentation/screens/journey_screen.dart';
+import '../../../inbox/presentation/screens/inbox_screen.dart';
 
 import 'package:material_ui/material_ui.dart';
 
@@ -29,11 +30,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ExploreScreen(),
     ScanScreen(),
     JourneyScreen(),
-    _PlaceholderScreen(
-      icon: Icons.chat_bubble_outline_rounded,
-      title: 'Inbox',
-      description: 'View your consent-based conversations.',
-    ),
+    InboxScreen(),
   ];
 
   void _selectTab(int index) {
@@ -112,52 +109,6 @@ class _ScanNavigationIcon extends StatelessWidget {
         Icons.center_focus_strong_rounded,
         color: colorScheme.onPrimary,
         size: 22,
-      ),
-    );
-  }
-}
-
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Icon(icon, size: 48, color: colorScheme.primary),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodyMedium
-                      ?.copyWith(color: colorScheme.onSurfaceVariant),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
