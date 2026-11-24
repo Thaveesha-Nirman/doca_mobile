@@ -3,6 +3,7 @@ import '../../../explore/presentation/screens/explore_screen.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../home/presentation/screens/home_screen.dart';
+import '../../../scan/presentation/screens/scan_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -25,11 +26,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),
     ExploreScreen(),
-    _PlaceholderScreen(
-      icon: Icons.center_focus_strong_rounded,
-      title: 'Private skin scan',
-      description: 'Scan privately and review possible matches.',
-    ),
+    ScanScreen(),
     _PlaceholderScreen(
       icon: Icons.timeline_rounded,
       title: 'Journey',
