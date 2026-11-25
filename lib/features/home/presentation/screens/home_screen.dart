@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../data/models/community_post.dart';
+import 'create_post_screen.dart';
 import '../widgets/community_post_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -21,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
     'Healed Stories',
     'Nearby Alerts',
   ];
-  static const List<CommunityPost> _posts = [
+  final List<CommunityPost> _posts = <CommunityPost>[
     CommunityPost(
       alias: 'CalmOtter47',
       timeAgo: '12 min ago',
@@ -64,6 +65,24 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ];
   String _selectedFilter = 'For You';
+  Future<void> _openCreatePost() async {
+    final CommunityPost? post = await Navigator.of(context).push<CommunityPost>(
+      MaterialPageRoute<CommunityPost>(
+        builder: (context) => const CreatePostScreen(),
+      ),
+    );
+
+    if (!mounted || post == null) {
+      return;
+    }
+
+    setState(() {
+      _posts.insert(0, post);
+    });
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Post published locally')));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: AppSpacing.md),
             _buildFilters(),
             const SizedBox(height: AppSpacing.lg),
-            const _CreatePostPrompt(),
+            _CreatePostPrompt(onTap: _openCreatePost),
             const SizedBox(height: AppSpacing.lg),
             ListView.separated(
               shrinkWrap: true,
@@ -336,7 +355,9 @@ class _PrivacyNotice extends StatelessWidget {
 }
 
 class _CreatePostPrompt extends StatelessWidget {
-  const _CreatePostPrompt();
+  const _CreatePostPrompt({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -344,7 +365,8 @@ class _CreatePostPrompt extends StatelessWidget {
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(AppRadius.lg),
       child: InkWell(
-        onTap: () {},
+        onTap: onTap,
+
         borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Container(
           padding: const EdgeInsets.all(AppSpacing.md),
