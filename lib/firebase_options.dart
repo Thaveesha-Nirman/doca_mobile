@@ -41,46 +41,44 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCXzzkD7_vs8fdY0MCyA1BRsdGPvq8nxY8',
-    appId: '1:916388507388:web:edb93620438b203a68f179',
-    messagingSenderId: '916388507388',
-    projectId: 'skinit-6606b',
-    authDomain: 'skinit-6606b.firebaseapp.com',
-    storageBucket: 'skinit-6606b.firebasestorage.app',
+    apiKey: 'AIzaSyCGO9pDHNZwxXpX7mvXKaDIST-2MP9CedU',
+    appId: '1:508280718306:web:5d0d93d48bb147a6b6efbb',
+    messagingSenderId: '508280718306',
+    projectId: 'doca-11996',
+    authDomain: 'doca-11996.firebaseapp.com',
+    storageBucket: 'doca-11996.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAyK7WSNwe0WaMRHiVeukMfAZq2Yax3PN0',
-    appId: '1:916388507388:android:93afc42840d03f3e68f179',
-    messagingSenderId: '916388507388',
-    projectId: 'skinit-6606b',
-    storageBucket: 'skinit-6606b.firebasestorage.app',
+    apiKey: 'AIzaSyAemiq40zvUHeZGjSCexuFs1ssAYnFSlmY',
+    appId: '1:508280718306:android:b3e8a27201e6260ab6efbb',
+    messagingSenderId: '508280718306',
+    projectId: 'doca-11996',
+    storageBucket: 'doca-11996.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyD1U6K8w3mi5_hs6KExEx13el9NTIoFLHQ',
-    appId: '1:916388507388:ios:c2311b96fc19910e68f179',
-    messagingSenderId: '916388507388',
-    projectId: 'skinit-6606b',
-    storageBucket: 'skinit-6606b.firebasestorage.app',
+    apiKey: 'AIzaSyBj_yR9fsG9cJAMIDKqVmYMXuZcbftZrzc',
+    appId: '1:508280718306:ios:e18cb109f2be358bb6efbb',
+    messagingSenderId: '508280718306',
+    projectId: 'doca-11996',
+    storageBucket: 'doca-11996.firebasestorage.app',
     iosBundleId: 'com.example.skinitMobile',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyD1U6K8w3mi5_hs6KExEx13el9NTIoFLHQ',
-    appId: '1:916388507388:ios:c2311b96fc19910e68f179',
-    messagingSenderId: '916388507388',
-    projectId: 'skinit-6606b',
-    storageBucket: 'skinit-6606b.firebasestorage.app',
+    apiKey: 'AIzaSyBj_yR9fsG9cJAMIDKqVmYMXuZcbftZrzc',
+    appId: '1:508280718306:ios:e18cb109f2be358bb6efbb',
+    messagingSenderId: '508280718306',
+    projectId: 'doca-11996',
+    storageBucket: 'doca-11996.firebasestorage.app',
     iosBundleId: 'com.example.skinitMobile',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyCXzzkD7_vs8fdY0MCyA1BRsdGPvq8nxY8',
-    appId: '1:916388507388:web:7f972a59ea1d92b668f179',
-    messagingSenderId: '916388507388',
-    projectId: 'skinit-6606b',
-    authDomain: 'skinit-6606b.firebaseapp.com',
-    storageBucket: 'skinit-6606b.firebasestorage.app',
+    apiKey: 'AIzaSyCGO9pDHNZwxXpX7mvXKaDIST-2MP9CedU',
+    appId: '1:508280718306:web:a220967858de04f5b6efbb',
+    messagingSenderId: '508280718306',
+    projectId: 'doca-11996',
+    authDomain: 'doca-11996.firebaseapp.com',
+    storageBucket: 'doca-11996.firebasestorage.app',
   );
 }
