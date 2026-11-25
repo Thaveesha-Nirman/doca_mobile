@@ -43,12 +43,18 @@ class LoginScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: onGetStarted,
+                onPressed: () {
+                  debugPrint('Get Started button pressed');
+                  onGetStarted?.call();
+                },
                 child: const Text('Get Started'),
               ),
               const SizedBox(height: AppSpacing.md),
               OutlinedButton(
-                onPressed: onExistingAccount,
+                onPressed: () {
+                  debugPrint('I Already Have an Account button pressed');
+                  onExistingAccount?.call();
+                },
                 child: const Text('I Already Have an Account'),
               ),
               const SizedBox(height: AppSpacing.lg),
