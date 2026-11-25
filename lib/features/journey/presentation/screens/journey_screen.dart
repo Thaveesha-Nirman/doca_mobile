@@ -1,573 +1,233 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../home/data/models/community_post.dart';
+import '../../../home/presentation/screens/create_post_screen.dart';
+import '../../data/models/journey.dart';
+import '../../data/repositories/local_journey_repository.dart';
+import '../../domain/repositories/journey_repository.dart';
 
-class JourneyScreen extends StatelessWidget {
-  const JourneyScreen({super.key});
+class JourneyScreen extends StatefulWidget {
+  const JourneyScreen({
+    this.journeyId,
+    this.repository,
+    this.isCurrentUserOwner = false,
+    this.refreshToken = 0,
+    super.key,
+  });
+
+  final String? journeyId;
+  final JourneyRepository? repository;
+  final bool isCurrentUserOwner;
+  final int refreshToken;
+
+  @override
+  State<JourneyScreen> createState() => _JourneyScreenState();
+}
+
+class _JourneyScreenState extends State<JourneyScreen> {
+  JourneyRepository get _repository =>
+      widget.repository ?? LocalJourneyRepository.instance;
+  Journey? _journey;
+  bool _loading = true;
+  bool _adding = false;
+  String? _error;
+  CommunityPost? _pendingPost;
+  int _request = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant JourneyScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.journeyId != oldWidget.journeyId ||
+        widget.repository != oldWidget.repository ||
+        widget.refreshToken != oldWidget.refreshToken) {
+      _pendingPost = null;
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final request = ++_request;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final journey = await _repository.fetchJourney(
+        widget.journeyId ?? 'my_journey',
+      );
+      if (!mounted || request != _request) return;
+      setState(() {
+        _journey = journey;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted || request != _request) return;
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _addPost() async {
+    final journey = _journey;
+    if (_adding || journey == null || !widget.isCurrentUserOwner) return;
+    setState(() => _adding = true);
+    try {
+      _pendingPost ??= await Navigator.of(context).push<CommunityPost>(
+        MaterialPageRoute(builder: (_) => const CreatePostScreen()),
+      );
+      if (!mounted || _pendingPost == null) return;
+      final draft = _pendingPost!;
+      final updates = journey.linkedPosts;
+      final parentId = updates.isEmpty ? journey.rootPostId : updates.last.id;
+      if (parentId == null) throw StateError('The parent post has no ID.');
+      await _repository.addJourneyPost(
+        journeyId: journey.id,
+        parentPostId: parentId,
+        title: draft.title,
+        body: draft.body,
+        topic: draft.topic,
+        status: draft.status,
+        isSensitive: draft.isSensitive,
+      );
+      _pendingPost = null;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Journey post added')));
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not add post: $error')));
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  Widget _postCard(CommunityPost post, {bool root = false}) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              root ? 'Root post' : 'Journey update',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            Text(post.alias),
+            Text('${post.topic} · ${post.status}'),
+            const SizedBox(height: 8),
+            Text(post.title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(post.body),
+            const SizedBox(height: 8),
+            Text(post.createdAt?.toLocal().toString() ?? post.timeAgo),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: ListView(
-          physics: const ClampingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.md,
-            AppSpacing.lg,
-            AppSpacing.xxl,
-          ),
-          children: <Widget>[
-            _buildHeader(context),
-            const SizedBox(height: AppSpacing.lg),
-            const _PrivacyNotice(),
-            const SizedBox(height: AppSpacing.lg),
-            const _ActiveJourneyCard(),
-            const SizedBox(height: AppSpacing.xxl),
-            const _SectionHeading(
-              title: 'Journey overview',
-              subtitle: 'A private summary of your recorded activity',
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const Row(
-              children: <Widget>[
-                Expanded(
-                  child: _SummaryCard(
-                    icon: Icons.calendar_today_outlined,
-                    value: '18',
-                    label: 'Days',
-                  ),
-                ),
-                SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: _SummaryCard(
-                    icon: Icons.edit_note_rounded,
-                    value: '4',
-                    label: 'Updates',
-                  ),
-                ),
-                SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: _SummaryCard(
-                    icon: Icons.lock_outline_rounded,
-                    value: 'Private',
-                    label: 'Visibility',
-                    compactValue: true,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xxl),
-            _buildTimelineHeader(context),
-            const SizedBox(height: AppSpacing.md),
-            const _TimelineEntry(
-              icon: Icons.water_drop_outlined,
-              title: 'Comfort update',
-              timeAgo: '2 days ago',
-              description: 'Recorded how the area felt after following the usual routine.',
-              tag: 'Personal note',
-              isFirst: true,
-            ),
-            const _TimelineEntry(
-              icon: Icons.photo_outlined,
-              title: 'Private photo added',
-              timeAgo: '1 week ago',
-              description:
-                  'Added a private reference photo to compare visible changes.',
-              tag: 'Hidden by default',
-            ),
-            const _TimelineEntry(
-              icon: Icons.flag_outlined,
-              title: 'Journey started',
-              timeAgo: '18 days ago',
-              description:
-                  'Started tracking general changes and personal observations.',
-              tag: 'Beginning',
-              isLast: true,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            const _MedicalReminder(),
-          ],
-        ),
-      ),
+      appBar: AppBar(title: const Text('Journey')),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
+  Widget _buildBody() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                'Your journey',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Track personal changes privately over time',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: AppColors.textSecondary),
-              ),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!),
+              const SizedBox(height: 12),
+              OutlinedButton(onPressed: _load, child: const Text('Retry')),
             ],
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
-        SizedBox(
-          width: 44,
-          height: 44,
-          child: IconButton(
-            tooltip: 'Journey settings',
-            onPressed: () {
-              debugPrint('Journey: settings opened');
-            },
-            icon: const Icon(Icons.tune_rounded),
-            color: AppColors.textPrimary,
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.surface,
-              side: const BorderSide(color: AppColors.border),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTimelineHeader(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        const Expanded(
-          child: _SectionHeading(
-            title: 'Recent updates',
-            subtitle: 'Your private activity timeline',
-          ),
-        ),
-        const SizedBox(width: AppSpacing.md),
-        SizedBox(
-          height: 44,
-          child: FilledButton.icon(
-            onPressed: () {
-              debugPrint('Journey: add update requested');
-            },
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Add'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PrivacyNotice extends StatelessWidget {
-  const _PrivacyNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.secondary.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Icon(
-            Icons.shield_outlined,
-            color: AppColors.secondary,
-            size: 20,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              'Journey entries are private by default. You decide whether '
-              'to share an update with the community.',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: AppColors.textSecondary, height: 1.4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActiveJourneyCard extends StatelessWidget {
-  const _ActiveJourneyCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: <Color>[
-            AppColors.primary.withValues(alpha: 0.22),
-            AppColors.surface,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.34)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: const Icon(
-                  Icons.timeline_rounded,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'Personal health routine',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Started 18 days ago',
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              const _StatusBadge(label: 'Active'),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: <Widget>[
-              Text(
-                'Check-in progress',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: AppColors.textSecondary),
-              ),
-              const Spacer(),
-              Text(
-                '64%',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            child: LinearProgressIndicator(
-              value: 0.64,
-              minHeight: 8,
-              color: AppColors.primary,
-              backgroundColor: AppColors.border,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: FilledButton.icon(
-              onPressed: () {
-                debugPrint('Journey: check-in requested');
-              },
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Record a check-in'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.secondary.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall
-            ?.copyWith(color: AppColors.secondary, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-}
-
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodySmall
-              ?.copyWith(color: AppColors.textSecondary),
-        ),
-      ],
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.icon,
-    required this.value,
-    required this.label,
-    this.compactValue = false,
-  });
-
-  final IconData icon;
-  final String value;
-  final String label;
-  final bool compactValue;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 112),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(icon, color: AppColors.primary, size: 20),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: compactValue
-                ? Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  )
-                : Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TimelineEntry extends StatelessWidget {
-  const _TimelineEntry({
-    required this.icon,
-    required this.title,
-    required this.timeAgo,
-    required this.description,
-    required this.tag,
-    this.isFirst = false,
-    this.isLast = false,
-  });
-
-  final IconData icon;
-  final String title;
-  final String timeAgo;
-  final String description;
-  final String tag;
-  final bool isFirst;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          SizedBox(
-            width: 40,
-            child: Column(
-              children: <Widget>[
-                if (!isFirst)
-                  Expanded(child: Container(width: 2, color: AppColors.border))
-                else
-                  const SizedBox(height: AppSpacing.sm),
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primary.withValues(alpha: 0.16),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.38),
-                    ),
-                  ),
-                  child: Icon(icon, color: AppColors.primary, size: 18),
-                ),
-                if (!isLast)
-                  Expanded(child: Container(width: 2, color: AppColors.border))
-                else
-                  const SizedBox(height: AppSpacing.sm),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
+      );
+    }
+    final journey = _journey;
+    if (journey == null) {
+      return const Center(child: Text('No journey posts yet'));
+    }
+    final root = journey.rootPost;
+    final updates = journey.linkedPosts;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (widget.journeyId == null && _repository is LocalJourneyRepository)
+          Wrap(
+            spacing: 8,
+            children: (_repository as LocalJourneyRepository).ownedJourneys
+                .map(
+                  (owned) => OutlinedButton(
+                    onPressed: () async {
+                      await Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => JourneyScreen(
+                            journeyId: owned.id,
+                            repository: _repository,
+                            isCurrentUserOwner: true,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        timeAgo,
-                        style: Theme.of(context).textTheme.labelSmall
-                            ?.copyWith(color: AppColors.textSecondary),
-                      ),
-                    ],
+                      );
+                      if (mounted) _load();
+                    },
+                    child: Text(owned.rootPost?.title ?? 'Open journey'),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    description,
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: AppColors.textSecondary, height: 1.4),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.xs,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
-                      borderRadius: BorderRadius.circular(AppRadius.pill),
-                    ),
-                    child: Text(
-                      tag,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppColors.secondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                )
+                .toList(),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MedicalReminder extends StatelessWidget {
-  const _MedicalReminder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Icon(
-            Icons.info_outline_rounded,
-            color: AppColors.warning,
-            size: 20,
+        Text(
+          root?.topic ?? 'Journey',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        Text('Owner: ${journey.ownerAlias}'),
+        Text('Privacy: ${journey.privacy}'),
+        if (journey.posts.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No journey posts yet'),
+          )
+        else if (root == null)
+          const Text('The root post is unavailable.')
+        else
+          _postCard(root, root: true),
+        ...updates.map(_postCard),
+        if (root != null && updates.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No additional journey posts yet'),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
+        if (widget.isCurrentUserOwner && root != null) ...[
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _adding ? null : _addPost,
             child: Text(
-              'Journey tracking supports personal reflection and is not a '
-              'medical diagnosis or treatment recommendation.',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: AppColors.textSecondary, height: 1.4),
+              _adding
+                  ? 'Adding...'
+                  : _pendingPost == null
+                  ? 'Add Post'
+                  : 'Retry adding post',
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 }

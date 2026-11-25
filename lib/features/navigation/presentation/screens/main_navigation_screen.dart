@@ -1,5 +1,6 @@
 import '../../../explore/presentation/screens/explore_screen.dart';
 import '../../../journey/presentation/screens/journey_screen.dart';
+import '../../../journey/data/repositories/local_journey_repository.dart';
 import '../../../inbox/presentation/screens/inbox_screen.dart';
 
 import 'package:material_ui/material_ui.dart';
@@ -25,17 +26,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     'Inbox',
   ];
 
-  static const List<Widget> _pages = <Widget>[
-    HomeScreen(),
-    ExploreScreen(),
-    ScanScreen(),
-    JourneyScreen(),
-    InboxScreen(),
-  ];
+  final LocalJourneyRepository _journeys = LocalJourneyRepository.instance;
+  int _journeyRefresh = 0;
 
   void _selectTab(int index) {
     setState(() {
       _currentIndex = index;
+      if (index == 3) _journeyRefresh++;
     });
 
     debugPrint('Selected Doca tab: ${_tabNames[index]}');
@@ -46,7 +43,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _pages),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          HomeScreen(journeyRepository: _journeys),
+          const ExploreScreen(),
+          const ScanScreen(),
+          JourneyScreen(
+            repository: _journeys,
+            isCurrentUserOwner: true,
+            refreshToken: _journeyRefresh,
+          ),
+          const InboxScreen(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _selectTab,

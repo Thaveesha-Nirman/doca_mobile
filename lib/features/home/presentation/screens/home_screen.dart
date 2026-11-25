@@ -6,15 +6,23 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../data/models/community_post.dart';
 import 'create_post_screen.dart';
 import '../widgets/community_post_card.dart';
+import '../../../journey/data/repositories/local_journey_repository.dart';
+import '../../../journey/presentation/screens/journey_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({this.journeyRepository, super.key});
+
+  final LocalJourneyRepository? journeyRepository;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  LocalJourneyRepository get _journeys =>
+      widget.journeyRepository ?? LocalJourneyRepository.instance;
+  final Set<String> _startingJourneys = {};
+  int _postSequence = 0;
   static const List<String> _filters = [
     'For You',
     'Recent',
@@ -38,6 +46,10 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     CommunityPost(
       alias: 'QuietMoon22',
+      id: 'shared_root_update',
+      journeyId: 'shared_journey',
+      rootPostId: 'shared_root',
+      parentPostId: 'shared_root',
       timeAgo: '1 hr ago',
       topic: 'Recovery journey',
       status: 'Ongoing',
@@ -76,12 +88,76 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    setState(() {
-      _posts.insert(0, post);
-    });
+    final ownedPost = post.copyWith(
+      id: 'home_post_${DateTime.now().microsecondsSinceEpoch}_${++_postSequence}',
+      alias: LocalJourneyRepository.currentAlias,
+      createdAt: DateTime.now().toUtc(),
+    );
+    _journeys.registerOwnedPost(ownedPost);
+    setState(() => _posts.insert(0, ownedPost));
 
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('Post published locally')));
+  }
+
+  Future<void> _openJourney(CommunityPost post) async {
+    final id = post.journeyId;
+    if (id == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => JourneyScreen(
+          journeyId: id,
+          repository: _journeys,
+          isCurrentUserOwner: _journeys.ownsJourney(id),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startJourney(CommunityPost post) async {
+    final id = post.id;
+    if (id == null || !_journeys.ownsPost(id) || !_startingJourneys.add(id)) {
+      return;
+    }
+    setState(() {});
+    try {
+      final privacy = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => SimpleDialog(
+          title: const Text('Journey privacy'),
+          children: ['Private', 'Shared Anonymously']
+              .map(
+                (value) => SimpleDialogOption(
+                  onPressed: () => Navigator.of(dialogContext).pop(value),
+                  child: Text(value),
+                ),
+              )
+              .toList(),
+        ),
+      );
+      if (privacy == null) return;
+      final journey = await _journeys.createJourney(
+        rootPostId: id,
+        privacy: privacy,
+      );
+      if (!mounted) return;
+      final index = _posts.indexWhere((item) => item.id == id);
+      if (index < 0) return;
+      final linkedPost = journey.rootPost!;
+      setState(() => _posts[index] = linkedPost);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Journey created')));
+      await _openJourney(linkedPost);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not create journey: $error')),
+        );
+      }
+    } finally {
+      _startingJourneys.remove(id);
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -119,6 +195,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 final CommunityPost post = _posts[index];
 
                 return CommunityPostCard(
+                  key: ValueKey(post.id ?? index),
+                  journeyId: post.journeyId,
+                  onViewJourney: () => _openJourney(post),
+                  onStartJourney:
+                      _journeys.ownsPost(post.id) &&
+                          !_startingJourneys.contains(post.id)
+                      ? () => _startJourney(post)
+                      : null,
                   alias: post.alias,
                   timeAgo: post.timeAgo,
                   topic: post.topic,

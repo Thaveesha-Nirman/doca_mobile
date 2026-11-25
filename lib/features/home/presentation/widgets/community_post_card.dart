@@ -17,6 +17,9 @@ class CommunityPostCard extends StatefulWidget {
     required this.votes,
     required this.comments,
     this.isSensitive = false,
+    this.journeyId,
+    this.onViewJourney,
+    this.onStartJourney,
     super.key,
   });
 
@@ -29,6 +32,9 @@ class CommunityPostCard extends StatefulWidget {
   final int votes;
   final int comments;
   final bool isSensitive;
+  final String? journeyId;
+  final VoidCallback? onViewJourney;
+  final VoidCallback? onStartJourney;
 
   @override
   State<CommunityPostCard> createState() => _CommunityPostCardState();
@@ -87,6 +93,22 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
             padding: const EdgeInsets.all(AppSpacing.md),
             child: _buildActions(),
           ),
+          if (widget.journeyId != null && widget.onViewJourney != null)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: OutlinedButton(
+                onPressed: widget.onViewJourney,
+                child: const Text('View Journey'),
+              ),
+            ),
+          if (widget.journeyId == null && widget.onStartJourney != null)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: OutlinedButton(
+                onPressed: widget.onStartJourney,
+                child: const Text('Start Journey'),
+              ),
+            ),
         ],
       ),
     );
