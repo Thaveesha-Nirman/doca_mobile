@@ -245,7 +245,7 @@ class _ActiveJourneyCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Skin comfort routine',
+                      'Personal health routine',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w700,
