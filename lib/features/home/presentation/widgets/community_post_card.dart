@@ -231,7 +231,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                 child: Center(
                   child: Semantics(
                     button: true,
-                    label: 'Reveal sensitive skin image',
+                    label: 'Reveal sensitive medical image',
                     child: FilledButton.icon(
                       onPressed: () {
                         setState(() {
@@ -312,7 +312,9 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                 style: TextStyle(
                   color: _vote == 0
                       ? AppColors.textPrimary
-                      : AppColors.secondary,
+                      : _vote == 1
+                      ? AppColors.secondary
+                      : AppColors.error,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
