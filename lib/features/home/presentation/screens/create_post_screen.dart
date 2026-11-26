@@ -5,6 +5,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../data/models/community_post.dart';
 import '../../data/repositories/community_post_repository.dart';
+import '../../data/repositories/temporary_local_community_post_repository.dart';
 import 'post_preview_screen.dart';
 
 class CreatePostScreen extends StatefulWidget {

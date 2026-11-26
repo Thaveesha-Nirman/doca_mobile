@@ -17,6 +17,8 @@ class CommunityPostCard extends StatefulWidget {
     required this.votes,
     required this.comments,
     this.isSensitive = false,
+    this.journeyId,
+    this.onViewJourney,
     super.key,
   });
 
@@ -29,6 +31,8 @@ class CommunityPostCard extends StatefulWidget {
   final int votes;
   final int comments;
   final bool isSensitive;
+  final String? journeyId;
+  final VoidCallback? onViewJourney;
 
   @override
   State<CommunityPostCard> createState() => _CommunityPostCardState();
@@ -343,6 +347,11 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           },
         ),
         const Spacer(),
+        if (widget.journeyId != null && widget.onViewJourney != null)
+          OutlinedButton(
+            onPressed: widget.onViewJourney,
+            child: const Text('View Journey'),
+          ),
         IconButton(
           tooltip: 'Share post',
           onPressed: () {

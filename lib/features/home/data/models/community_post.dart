@@ -1,5 +1,6 @@
 class CommunityPost {
   const CommunityPost({
+    this.id = '',
     required this.alias,
     required this.timeAgo,
     required this.topic,
@@ -9,8 +10,13 @@ class CommunityPost {
     required this.votes,
     required this.comments,
     this.isSensitive = false,
+    this.rootPostId,
+    this.journeyId,
+    this.parentPostId,
+    this.createdAt,
   });
 
+  final String id;
   final String alias;
   final String timeAgo;
   final String topic;
@@ -20,4 +26,40 @@ class CommunityPost {
   final int votes;
   final int comments;
   final bool isSensitive;
+  final String? rootPostId;
+  final String? journeyId;
+  final String? parentPostId;
+  final DateTime? createdAt;
+
+  factory CommunityPost.fromJson(Map<String, dynamic> json) {
+    return CommunityPost(
+      id: _stringValue(json['id']),
+      alias: _stringValue(json['alias']),
+      timeAgo: _stringValue(json['timeAgo']),
+      topic: _stringValue(json['topic']),
+      status: _stringValue(json['status']),
+      title: _stringValue(json['title']),
+      body: _stringValue(json['body']),
+      votes: _intValue(json['votes']),
+      comments: _intValue(json['comments']),
+      isSensitive: json['isSensitive'] is bool
+          ? json['isSensitive'] as bool
+          : false,
+      rootPostId: _nullableString(json['rootPostId']),
+      journeyId: _nullableString(json['journeyId']),
+      parentPostId: _nullableString(json['parentPostId']),
+      createdAt: _dateTimeValue(json['createdAt']),
+    );
+  }
+
+  static String _stringValue(Object? value) => value is String ? value : '';
+
+  static String? _nullableString(Object? value) =>
+      value is String ? value : null;
+
+  static int _intValue(Object? value) =>
+      value is int ? value : int.tryParse(value?.toString() ?? '') ?? 0;
+
+  static DateTime? _dateTimeValue(Object? value) =>
+      value is String ? DateTime.tryParse(value) : null;
 }
