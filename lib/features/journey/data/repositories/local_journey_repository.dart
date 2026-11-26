@@ -7,7 +7,7 @@ class LocalJourneyRepository implements JourneyRepository {
   LocalJourneyRepository() {
     _seed('my_journey', 'my_root', currentAlias, 'Private', true);
     _seed(
-      'shared_journey',
+      'journey_124',
       'shared_root',
       'QuietMoon22',
       'Shared Anonymously',
@@ -29,11 +29,11 @@ class LocalJourneyRepository implements JourneyRepository {
   bool ownsPost(String? id) => _ownedPosts.contains(id);
 
   void registerOwnedPost(CommunityPost post) {
-    if (post.id == null || post.id!.isEmpty) {
+    if (post.id.isEmpty) {
       throw ArgumentError('A post ID is required.');
     }
-    _posts[post.id!] = post;
-    _ownedPosts.add(post.id!);
+    _posts[post.id] = post;
+    _ownedPosts.add(post.id);
   }
 
   void _seed(
@@ -73,10 +73,10 @@ class LocalJourneyRepository implements JourneyRepository {
       posts: List.unmodifiable([root, update]),
     );
     _posts[rootId] = root;
-    _posts[update.id!] = update;
+    _posts[update.id] = update;
     if (owned) {
       _ownedJourneys.add(id);
-      _ownedPosts.addAll([rootId, update.id!]);
+      _ownedPosts.addAll([rootId, update.id]);
     }
   }
 
@@ -162,8 +162,8 @@ class LocalJourneyRepository implements JourneyRepository {
     _journeys[journeyId] = journey.copyWith(
       posts: List.unmodifiable([...journey.posts, post]),
     );
-    _posts[post.id!] = post;
-    _ownedPosts.add(post.id!);
+    _posts[post.id] = post;
+    _ownedPosts.add(post.id);
     return post;
   }
 }

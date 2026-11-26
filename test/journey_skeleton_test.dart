@@ -66,7 +66,7 @@ void main() {
       );
       await expectLater(
         repository.addJourneyPost(
-          journeyId: 'shared_journey',
+          journeyId: 'journey_124',
           parentPostId: 'shared_root',
           title: 'Foreign update',
           body: 'Body',
@@ -116,7 +116,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: JourneyScreen(
-          journeyId: 'shared_journey',
+          journeyId: 'journey_124',
           repository: LocalJourneyRepository(),
         ),
       ),

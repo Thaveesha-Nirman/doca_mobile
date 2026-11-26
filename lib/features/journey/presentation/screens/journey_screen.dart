@@ -87,7 +87,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
       final draft = _pendingPost!;
       final updates = journey.linkedPosts;
       final parentId = updates.isEmpty ? journey.rootPostId : updates.last.id;
-      if (parentId == null) throw StateError('The parent post has no ID.');
+      if (parentId.isEmpty) throw StateError('The parent post has no ID.');
       await _repository.addJourneyPost(
         journeyId: journey.id,
         parentPostId: parentId,
