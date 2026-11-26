@@ -4,11 +4,17 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../data/models/community_post.dart';
+import '../../data/repositories/community_post_repository.dart';
 import 'post_preview_screen.dart';
 
 class CreatePostScreen extends StatefulWidget {
-  const CreatePostScreen({this.onSubmit, super.key});
+  const CreatePostScreen({
+    this.repository = const TemporaryLocalCommunityPostRepository(),
+    this.onSubmit,
+    super.key,
+  });
 
+  final CommunityPostRepository repository;
   final ValueChanged<CommunityPost>? onSubmit;
 
   @override
@@ -54,7 +60,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       _isSubmitting = true;
     });
 
-    final CommunityPost post = CommunityPost(
+    final CommunityPost draft = CommunityPost(
       alias: 'Anonymous',
       timeAgo: 'Just now',
       topic: _selectedTopic,
@@ -68,7 +74,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     final bool? published = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (context) => PostPreviewScreen(post: post),
+        builder: (context) => PostPreviewScreen(post: draft),
       ),
     );
 
@@ -76,13 +82,42 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       return;
     }
 
-    setState(() {
-      _isSubmitting = false;
-    });
+    if (published != true) {
+      setState(() {
+        _isSubmitting = false;
+      });
+      return;
+    }
 
-    if (published == true) {
+    try {
+      final CommunityPost post = await widget.repository.createPost(
+        topic: _selectedTopic,
+        status: _selectedStatus,
+        title: _titleController.text.trim(),
+        body: _bodyController.text.trim(),
+        isSensitive: _isSensitive,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
       widget.onSubmit?.call(post);
       Navigator.of(context).pop(post);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to publish post. Please try again.'),
+        ),
+      );
     }
   }
 
