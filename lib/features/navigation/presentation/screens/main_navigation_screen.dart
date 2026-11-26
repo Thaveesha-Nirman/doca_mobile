@@ -1,3 +1,5 @@
+import '../../../explore/presentation/screens/explore_screen.dart';
+import '../../../journey/presentation/screens/journey_screen.dart';
 import '../../../inbox/presentation/screens/inbox_screen.dart';
 
 import 'package:material_ui/material_ui.dart';
@@ -17,9 +19,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   static const List<String> _tabNames = <String>[
     'Home',
+    'Explore',
     'Scan',
+    'Journey',
     'Inbox',
-    'Profile',
+  ];
+
+  static const List<Widget> _pages = <Widget>[
+    HomeScreen(),
+    ExploreScreen(),
+    ScanScreen(),
+    JourneyScreen(),
+    InboxScreen(),
   ];
 
   void _selectTab(int index) {
@@ -35,15 +46,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          const HomeScreen(),
-          const ScanScreen(),
-          const InboxScreen(),
-          const Center(child: Text('Profile coming soon')),
-        ],
-      ),
+      body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _selectTab,
@@ -58,19 +61,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             label: 'Home',
           ),
           NavigationDestination(
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore_rounded),
+            label: 'Explore',
+          ),
+          NavigationDestination(
             icon: _ScanNavigationIcon(),
             selectedIcon: _ScanNavigationIcon(isSelected: true),
             label: 'Scan',
           ),
           NavigationDestination(
+            icon: Icon(Icons.timeline_outlined),
+            selectedIcon: Icon(Icons.timeline_rounded),
+            label: 'Journey',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline_rounded),
             selectedIcon: Icon(Icons.chat_bubble_rounded),
             label: 'Inbox',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Profile',
           ),
         ],
       ),

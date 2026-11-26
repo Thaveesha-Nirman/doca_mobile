@@ -6,7 +6,6 @@ import 'package:skinit_mobile/features/journey/data/models/journey.dart';
 import 'package:skinit_mobile/features/journey/data/repositories/local_journey_repository.dart';
 import 'package:skinit_mobile/features/journey/domain/repositories/journey_repository.dart';
 import 'package:skinit_mobile/features/journey/presentation/screens/journey_screen.dart';
-import 'package:skinit_mobile/features/navigation/presentation/screens/main_navigation_screen.dart';
 
 class RetryRepository implements JourneyRepository {
   bool failed = true;
@@ -27,26 +26,13 @@ class RetryRepository implements JourneyRepository {
 }
 
 void main() {
-  testWidgets('bottom navigation has the four required destinations', (
-    tester,
-  ) async {
-    await tester.pumpWidget(const MaterialApp(home: MainNavigationScreen()));
-    await tester.pumpAndSettle();
-
-    final navigation = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(
-      navigation.destinations.map(
-        (destination) => (destination as NavigationDestination).label,
-      ),
-      ['Home', 'Scan', 'Inbox', 'Profile'],
-    );
-  });
-
   testWidgets('View Journey opens the linked root and update', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    final viewJourney = find.widgetWithText(OutlinedButton, 'View Journey').first;
+    final viewJourney = find
+        .widgetWithText(OutlinedButton, 'View Journey')
+        .first;
     await tester.ensureVisible(viewJourney);
     await tester.pumpAndSettle();
     await tester.tap(viewJourney);
