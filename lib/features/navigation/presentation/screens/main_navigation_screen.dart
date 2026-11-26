@@ -1,6 +1,3 @@
-import '../../../explore/presentation/screens/explore_screen.dart';
-import '../../../journey/presentation/screens/journey_screen.dart';
-import '../../../journey/data/repositories/local_journey_repository.dart';
 import '../../../inbox/presentation/screens/inbox_screen.dart';
 
 import 'package:material_ui/material_ui.dart';
@@ -20,19 +17,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   static const List<String> _tabNames = <String>[
     'Home',
-    'Explore',
     'Scan',
-    'Journey',
     'Inbox',
+    'Profile',
   ];
-
-  final LocalJourneyRepository _journeys = LocalJourneyRepository.instance;
-  int _journeyRefresh = 0;
 
   void _selectTab(int index) {
     setState(() {
       _currentIndex = index;
-      if (index == 3) _journeyRefresh++;
     });
 
     debugPrint('Selected Doca tab: ${_tabNames[index]}');
@@ -46,15 +38,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          HomeScreen(journeyRepository: _journeys),
-          const ExploreScreen(),
+          const HomeScreen(),
           const ScanScreen(),
-          JourneyScreen(
-            repository: _journeys,
-            isCurrentUserOwner: true,
-            refreshToken: _journeyRefresh,
-          ),
           const InboxScreen(),
+          const Center(child: Text('Profile coming soon')),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -71,24 +58,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore_rounded),
-            label: 'Explore',
-          ),
-          NavigationDestination(
             icon: _ScanNavigationIcon(),
             selectedIcon: _ScanNavigationIcon(isSelected: true),
             label: 'Scan',
           ),
           NavigationDestination(
-            icon: Icon(Icons.timeline_outlined),
-            selectedIcon: Icon(Icons.timeline_rounded),
-            label: 'Journey',
-          ),
-          NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline_rounded),
             selectedIcon: Icon(Icons.chat_bubble_rounded),
             label: 'Inbox',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: 'Profile',
           ),
         ],
       ),

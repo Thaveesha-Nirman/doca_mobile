@@ -55,7 +55,7 @@ The project will use these models:
 
 ### Response
 
-````json
+```json
 {
   "posts": [
     {
@@ -76,7 +76,7 @@ The project will use these models:
     }
   ]
 }
-````
+```
 
 ## Journey API Contracts
 
@@ -126,7 +126,7 @@ contract and authenticated server permissions.
 
 ### Load Journey
 
-- Screen/button: Journey, View Journey, or Journey tab
+- Screen/button: Journey, View Journey
 - When: The user opens a Journey
 - Method: `GET`
 - Endpoint: `/api/journeys/{journeyId}`
@@ -236,7 +236,7 @@ Complete proposed Create Journey response (`201 Created`):
 {
   "googleIdToken": "google_token_from_provider"
 }
-````
+```
 
 ### Create Username
 
@@ -247,10 +247,12 @@ Complete proposed Create Journey response (`201 Created`):
 
 #### Request
 
-````json
+```json
 {
   "username": "CalmOtter47"
 }
+
+```
 
 #### Response: 200 OK
 
@@ -263,6 +265,8 @@ Complete proposed Create Journey response (`201 Created`):
     "genderCompleted": false
   }
 }
+
+```
 
 #### Loading state
 
@@ -290,6 +294,8 @@ Navigate to Select Gender.
   "gender": "prefer_not_to_say"
 }
 
+```
+
 #### Response
 
 ```json
@@ -300,7 +306,7 @@ Navigate to Select Gender.
     "genderCompleted": true
   }
 }
-````
+```
 
 #### Loading state
 

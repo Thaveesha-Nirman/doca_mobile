@@ -14,23 +14,16 @@ import '../../../journey/presentation/screens/journey_screen.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
-    this.journeyRepository,
     this.repository = const TemporaryLocalCommunityPostRepository(),
   });
 
   final CommunityPostRepository repository;
-  final LocalJourneyRepository? journeyRepository;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  LocalJourneyRepository get _journeys =>
-      widget.journeyRepository ?? LocalJourneyRepository.instance;
-  final Set<String> _startingJourneys = {};
-  int _postSequence = 0;
-
   final TextEditingController _searchController = TextEditingController();
 
   List<CommunityPost> _posts = <CommunityPost>[];
@@ -117,13 +110,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final ownedPost = post.copyWith(
-      id: 'home_post_${DateTime.now().microsecondsSinceEpoch}_${++_postSequence}',
-      alias: LocalJourneyRepository.currentAlias,
-      createdAt: DateTime.now().toUtc(),
-    );
-    _journeys.registerOwnedPost(ownedPost);
-    setState(() => _posts = [ownedPost, ..._posts]);
+    setState(() {
+      _posts = <CommunityPost>[post, ..._posts];
+    });
   }
 
   Future<void> _openJourney(CommunityPost post) async {
@@ -133,57 +122,11 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (_) => JourneyScreen(
           journeyId: id,
-          repository: _journeys,
-          isCurrentUserOwner: _journeys.ownsJourney(id),
+          repository: LocalJourneyRepository.instance,
+          isCurrentUserOwner: LocalJourneyRepository.instance.ownsJourney(id),
         ),
       ),
     );
-  }
-
-  Future<void> _startJourney(CommunityPost post) async {
-    final id = post.id;
-    if (id.isEmpty || !_journeys.ownsPost(id) || !_startingJourneys.add(id)) {
-      return;
-    }
-    setState(() {});
-    try {
-      final privacy = await showDialog<String>(
-        context: context,
-        builder: (dialogContext) => SimpleDialog(
-          title: const Text('Journey privacy'),
-          children: ['Private', 'Shared Anonymously']
-              .map(
-                (value) => SimpleDialogOption(
-                  onPressed: () => Navigator.of(dialogContext).pop(value),
-                  child: Text(value),
-                ),
-              )
-              .toList(),
-        ),
-      );
-      if (privacy == null) return;
-      final journey = await _journeys.createJourney(
-        rootPostId: id,
-        privacy: privacy,
-      );
-      if (!mounted) return;
-      final index = _posts.indexWhere((item) => item.id == id);
-      if (index < 0) return;
-      final linkedPost = journey.rootPost!;
-      setState(() => _posts[index] = linkedPost);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Journey created')));
-      await _openJourney(linkedPost);
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not create journey: $error')),
-        );
-      }
-    } finally {
-      _startingJourneys.remove(id);
-      if (mounted) setState(() {});
-    }
   }
 
   @override
@@ -243,12 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 (post) => Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.md),
                   child: CommunityPostCard(
-                    key: ValueKey(post.id),
-                    onStartJourney:
-                        _journeys.ownsPost(post.id) &&
-                            !_startingJourneys.contains(post.id)
-                        ? () => _startJourney(post)
-                        : null,
                     alias: post.alias,
                     timeAgo: post.timeAgo,
                     topic: post.topic,
