@@ -1,4 +1,5 @@
-import 'dart:ui';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:material_ui/material_ui.dart';
 
@@ -10,13 +11,35 @@ class CommunityPostCard extends StatefulWidget {
   const CommunityPostCard({
     required this.alias,
     required this.timeAgo,
-    required this.topic,
     required this.status,
     required this.title,
     required this.body,
     required this.votes,
     required this.comments,
+    this.topic = '',
+    this.images = const [],
     this.isSensitive = false,
+    this.userVote,
+    this.sharesCount = 0,
+    this.isSharedByMe = false,
+    this.stepNumber = 1,
+    this.journeyCount = 1,
+    this.showOwnerJourneyActions = false,
+    this.sharedByAlias,
+    this.shareCaption = '',
+    this.sharedTimeAgo,
+    this.canManage = false,
+    this.onEdit,
+    this.onDelete,
+    this.onSharerTap,
+    this.onAuthorTap,
+    this.onViewJourney,
+    this.onAddJourney,
+    this.onEditJourney,
+    this.onUpvote,
+    this.onDownvote,
+    this.onComment,
+    this.onShare,
     super.key,
   });
 
@@ -27,37 +50,140 @@ class CommunityPostCard extends StatefulWidget {
   final String title;
   final String body;
   final int votes;
+  final String? userVote;
   final int comments;
+  final int sharesCount;
+  final bool isSharedByMe;
+  final int stepNumber;
+  final int journeyCount;
+  final List<String> images;
   final bool isSensitive;
+  final bool showOwnerJourneyActions;
+
+  // Facebook-style shared post props
+  final String? sharedByAlias;
+  final String shareCaption;
+  final String? sharedTimeAgo;
+  final VoidCallback? onSharerTap;
+
+  // Owner-only 3-dot menu props
+  final bool canManage;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  final VoidCallback? onAuthorTap;
+  final VoidCallback? onViewJourney;
+  final VoidCallback? onAddJourney;
+  final VoidCallback? onEditJourney;
+  final VoidCallback? onUpvote;
+  final VoidCallback? onDownvote;
+  final VoidCallback? onComment;
+  final VoidCallback? onShare;
 
   @override
   State<CommunityPostCard> createState() => _CommunityPostCardState();
 }
 
 class _CommunityPostCardState extends State<CommunityPostCard> {
-  int _vote = 0;
-  bool _isSaved = false;
-  bool _isRevealed = false;
+  bool _revealSensitive = false;
 
-  int get _displayVotes => widget.votes + _vote;
+  bool get _isSharedCard =>
+      widget.sharedByAlias != null && widget.sharedByAlias!.trim().isNotEmpty;
 
-  Color get _statusColor {
-    return switch (widget.status) {
-      'Healed' => AppColors.secondary,
-      'Ongoing' => AppColors.warning,
-      _ => AppColors.primary,
-    };
+  Uint8List? _decodeImage(String raw) {
+    try {
+      final clean = raw.contains(',') ? raw.split(',').last : raw;
+      return base64Decode(clean);
+    } catch (_) {
+      return null;
+    }
   }
 
-  void _setVote(int vote) {
-    setState(() {
-      _vote = _vote == vote ? 0 : vote;
-    });
+  String _statusLabel(String raw) {
+    switch (raw) {
+      case 'Healed':
+        return 'Healed';
+      case 'Ongoing':
+        return 'Ongoing Treatment';
+      default:
+        return 'Just Asking';
+    }
+  }
+
+  Color _statusColor(String raw) {
+    switch (raw) {
+      case 'Healed':
+        return Colors.greenAccent;
+      case 'Ongoing':
+        return Colors.orangeAccent;
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  Widget _buildThreeDotMenu({required bool forShare}) {
+    return PopupMenuButton<String>(
+      icon: const Icon(
+        Icons.more_vert_rounded,
+        color: AppColors.textSecondary,
+        size: 20,
+      ),
+      color: AppColors.surfaceElevated,
+      onSelected: (value) {
+        if (value == 'edit') {
+          widget.onEdit?.call();
+        } else if (value == 'delete') {
+          widget.onDelete?.call();
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'edit',
+          child: Row(
+            children: [
+              const Icon(
+                Icons.edit_outlined,
+                size: 18,
+                color: AppColors.textPrimary,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                forShare ? 'Edit caption' : 'Edit post',
+                style: const TextStyle(color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Row(
+            children: [
+              const Icon(
+                Icons.delete_outline_rounded,
+                size: 18,
+                color: Colors.redAccent,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                forShare ? 'Delete share' : 'Delete post',
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final decodedPhotos = widget.images
+        .map(_decodeImage)
+        .whereType<Uint8List>()
+        .toList();
+
     return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -66,117 +192,300 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.lg,
-              AppSpacing.sm,
-              AppSpacing.sm,
-            ),
-            child: _buildHeader(),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: _buildPostContent(),
-          ),
-          if (widget.isSensitive) ...[
+          // Facebook-style Sharer Header + Caption
+          if (_isSharedCard) ...[
+            _buildSharerHeader(),
+            if (widget.shareCaption.trim().isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                widget.shareCaption.trim(),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
-            _buildSensitivePreview(),
           ],
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: _buildActions(),
-          ),
+
+          // Original Post Body (embedded when shared)
+          if (_isSharedCard)
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: _buildOriginalPostContent(decodedPhotos),
+            )
+          else
+            _buildOriginalPostContent(decodedPhotos),
+
+          // Owner Journey Actions (Profile -> My Journeys)
+          if (widget.showOwnerJourneyActions) ...[
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                if (widget.onAddJourney != null)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onAddJourney,
+                      icon: const Icon(Icons.add_circle_outline, size: 16),
+                      label: const Text(
+                        'Add Journey',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
+                if (widget.onAddJourney != null && widget.onEditJourney != null)
+                  const SizedBox(width: AppSpacing.sm),
+                if (widget.onEditJourney != null)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onEditJourney,
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text(
+                        'Edit Journey',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.secondary,
+                        side: const BorderSide(color: AppColors.secondary),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: AppSpacing.lg),
+
+          // Bottom Action Bar
+          _buildActionBar(),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildSharerHeader() {
     return Row(
       children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.16),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.35),
+        Expanded(
+          child: InkWell(
+            onTap: widget.onSharerTap,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.16),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.repeat_rounded,
+                    color: AppColors.primary,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: widget.sharedByAlias,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const TextSpan(text: ' shared this post'),
+                          ],
+                        ),
+                      ),
+                      if (widget.sharedTimeAgo != null &&
+                          widget.sharedTimeAgo!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.sharedTimeAgo!,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          child: const Icon(
-            Icons.person_outline_rounded,
-            color: AppColors.primary,
-            size: 22,
-          ),
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.alias,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                '${widget.timeAgo} · Anonymous',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuButton<String>(
-          tooltip: 'Post options',
-          color: AppColors.surfaceElevated,
-          icon: const Icon(
-            Icons.more_horiz_rounded,
-            color: AppColors.textSecondary,
-          ),
-          onSelected: (value) {
-            debugPrint('Post action: $value');
-          },
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 'hide', child: Text('Hide post')),
-            PopupMenuItem(value: 'block', child: Text('Block user')),
-            PopupMenuItem(value: 'report', child: Text('Report post')),
-          ],
-        ),
+        if (widget.canManage) _buildThreeDotMenu(forShare: true),
       ],
     );
   }
 
-  Widget _buildPostContent() {
+  Widget _buildOriginalPostContent(List<Uint8List> decodedPhotos) {
+    final statusColor = _statusColor(widget.status);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
+        // 1. Author Header (+ 3-dot menu ONLY on non-shared own posts)
+        Row(
           children: [
-            _PostBadge(label: widget.topic, color: AppColors.secondary),
-            _PostBadge(label: widget.status, color: _statusColor),
+            Expanded(
+              child: InkWell(
+                onTap: widget.onAuthorTap,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.14),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.person_outline_rounded,
+                        color: AppColors.primary,
+                        size: 19,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.alias,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${widget.timeAgo}${widget.journeyCount > 1 ? ' · Update #${widget.stepNumber}' : ''}',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (!_isSharedCard && widget.canManage)
+              _buildThreeDotMenu(forShare: false),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
+
+        // 2. Status Badge + View Journey Button
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 5,
+              ),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color: statusColor.withValues(alpha: 0.45),
+                ),
+              ),
+              child: Text(
+                _statusLabel(widget.status),
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            if (widget.onViewJourney != null)
+              InkWell(
+                onTap: widget.onViewJourney,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    border: Border.all(
+                      color: AppColors.secondary.withValues(alpha: 0.45),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.timeline_rounded,
+                        size: 14,
+                        color: AppColors.secondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        widget.journeyCount > 1
+                            ? 'View Journey (${widget.journeyCount})'
+                            : 'View Journey',
+                        style: const TextStyle(
+                          color: AppColors.secondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // 3. Title & Body
         Text(
           widget.title,
           style: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 17,
+            fontWeight: FontWeight.w800,
             height: 1.3,
-            fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -185,109 +494,27 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           style: const TextStyle(
             color: AppColors.textSecondary,
             fontSize: 14,
-            height: 1.5,
+            height: 1.45,
           ),
         ),
+
+        // 4. Uploaded Photos
+        if (decodedPhotos.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          _buildPhotosSection(decodedPhotos),
+        ],
       ],
     );
   }
 
-  Widget _buildSensitivePreview() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: SizedBox(
-        width: double.infinity,
-        height: 170,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ImageFiltered(
-              imageFilter: ImageFilter.blur(
-                sigmaX: _isRevealed ? 0 : 18,
-                sigmaY: _isRevealed ? 0 : 18,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.primary.withValues(alpha: 0.65),
-                      AppColors.secondary.withValues(alpha: 0.55),
-                      AppColors.surfaceElevated,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.image_outlined,
-                  color: AppColors.textPrimary,
-                  size: 52,
-                ),
-              ),
-            ),
-            if (!_isRevealed)
-              ColoredBox(
-                color: AppColors.background.withValues(alpha: 0.58),
-                child: Center(
-                  child: Semantics(
-                    button: true,
-                    label: 'Reveal sensitive medical image',
-                    child: FilledButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _isRevealed = true;
-                        });
-                      },
-                      icon: const Icon(Icons.visibility_outlined),
-                      label: const Text('View sensitive image'),
-                    ),
-                  ),
-                ),
-              ),
-            Positioned(
-              top: AppSpacing.sm,
-              left: AppSpacing.sm,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.background.withValues(alpha: 0.78),
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.shield_outlined,
-                      color: AppColors.textSecondary,
-                      size: 15,
-                    ),
-                    SizedBox(width: AppSpacing.xs),
-                    Text(
-                      'Sensitive content',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildActionBar() {
+    final isUp = widget.userVote == 'up';
+    final isDown = widget.userVote == 'down';
 
-  Widget _buildActions() {
     return Row(
       children: [
         Container(
-          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
             color: AppColors.surfaceElevated,
             borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -296,142 +523,142 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                tooltip: 'Upvote',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => _setVote(1),
-                icon: Icon(
-                  Icons.keyboard_arrow_up_rounded,
-                  color: _vote == 1
-                      ? AppColors.secondary
-                      : AppColors.textSecondary,
+              InkWell(
+                onTap: widget.onUpvote,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.arrow_upward_rounded,
+                    color: isUp ? AppColors.primary : AppColors.textPrimary,
+                    size: 18,
+                  ),
                 ),
               ),
-              Text(
-                '$_displayVotes',
-                style: TextStyle(
-                  color: _vote == 0
-                      ? AppColors.textPrimary
-                      : _vote == 1
-                      ? AppColors.secondary
-                      : AppColors.error,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  '${widget.votes}',
+                  style: TextStyle(
+                    color: isUp
+                        ? AppColors.primary
+                        : isDown
+                            ? Colors.redAccent
+                            : AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              IconButton(
-                tooltip: 'Downvote',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => _setVote(-1),
-                icon: Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: _vote == -1
-                      ? AppColors.error
-                      : AppColors.textSecondary,
+              InkWell(
+                onTap: widget.onDownvote,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.arrow_downward_rounded,
+                    color: isDown ? Colors.redAccent : AppColors.textSecondary,
+                    size: 18,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        _ActionButton(
-          icon: Icons.chat_bubble_outline_rounded,
-          label: '${widget.comments}',
-          tooltip: 'Comments',
-          onPressed: () {
-            debugPrint('Comments opened: ${widget.title}');
-          },
-        ),
-        const Spacer(),
-        IconButton(
-          tooltip: 'Share post',
-          onPressed: () {
-            debugPrint('Post shared: ${widget.title}');
-          },
-          icon: const Icon(
-            Icons.ios_share_rounded,
-            color: AppColors.textSecondary,
+        const SizedBox(width: AppSpacing.md),
+        InkWell(
+          onTap: widget.onComment,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  color: AppColors.textSecondary,
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${widget.comments}',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        IconButton(
-          tooltip: _isSaved ? 'Remove saved post' : 'Save post',
-          onPressed: () {
-            setState(() {
-              _isSaved = !_isSaved;
-            });
-          },
-          icon: Icon(
-            _isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-            color: _isSaved ? AppColors.primary : AppColors.textSecondary,
+        const Spacer(),
+        InkWell(
+          onTap: widget.onShare,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              children: [
+                Icon(
+                  widget.isSharedByMe
+                      ? Icons.repeat_on_rounded
+                      : Icons.share_outlined,
+                  color: widget.isSharedByMe
+                      ? AppColors.primary
+                      : AppColors.textSecondary,
+                  size: 19,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  widget.isSharedByMe
+                      ? 'Shared (${widget.sharesCount})'
+                      : widget.sharesCount > 0
+                          ? '${widget.sharesCount}'
+                          : 'Share',
+                  style: TextStyle(
+                    color: widget.isSharedByMe
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
     );
   }
-}
 
-class _PostBadge extends StatelessWidget {
-  const _PostBadge({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        onTap: onPressed,
+  Widget _buildPhotosSection(List<Uint8List> photos) {
+    if (widget.isSensitive && !_revealSensitive) {
+      return InkWell(
+        onTap: () => setState(() => _revealSensitive = true),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.xl,
+            horizontal: AppSpacing.md,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
             children: [
-              Icon(icon, color: AppColors.textSecondary, size: 19),
-              const SizedBox(width: AppSpacing.xs),
+              const Icon(
+                Icons.visibility_off_outlined,
+                color: AppColors.textSecondary,
+                size: 26,
+              ),
+              const SizedBox(height: AppSpacing.sm),
               Text(
-                label,
+                'Sensitive photo (${photos.length}) · Tap to reveal',
                 style: const TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -439,6 +666,38 @@ class _ActionButton extends StatelessWidget {
             ],
           ),
         ),
+      );
+    }
+
+    if (photos.length == 1) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Image.memory(
+          photos.first,
+          width: double.infinity,
+          height: 220,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 180,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: photos.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, index) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: Image.memory(
+              photos[index],
+              width: 220,
+              height: 180,
+              fit: BoxFit.cover,
+            ),
+          );
+        },
       ),
     );
   }
