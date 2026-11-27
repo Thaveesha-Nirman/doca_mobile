@@ -1,67 +1,118 @@
 import 'package:material_ui/material_ui.dart';
-
+import '../../../../core/services/api_service.dart';
+import '../../../../core/services/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../navigation/presentation/screens/main_navigation_screen.dart';
 
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key, this.onGetStarted, this.onExistingAccount});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
-  final VoidCallback? onGetStarted;
-  final VoidCallback? onExistingAccount;
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool _isLoading = false;
+
+  Future<void> _onGoogleLoginTap() async {
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.instance.signInWithGoogle();
+      final result = await ApiService.instance.syncUser();
+      final isNewUser = result['isNewUser'] == true;
+
+      if (!mounted) return;
+
+      if (isNewUser) {
+        // No MongoDB profile yet -> sign out and tell them to Sign Up
+        await AuthService.instance.signOut();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(
+              'No account found for this email. Please tap Create Account first.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Login error: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        title: const Text(
+          'Log In',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Spacer(),
-              const Icon(
-                Icons.shield_outlined,
-                color: AppColors.primary,
-                size: 64,
-              ),
-              const SizedBox(height: AppSpacing.lg),
               const Text(
-                'Welcome to Doca',
-                textAlign: TextAlign.center,
+                'Welcome back',
                 style: TextStyle(
                   color: AppColors.textPrimary,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
               const Text(
-                'A private and anonymous space for your health journey.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+                'Continue with the Gmail you used before. Your email stays private in Firebase and is never shown publicly.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                ),
               ),
-              const Spacer(),
-              FilledButton(
-                onPressed: () {
-                  debugPrint('Get Started button pressed');
-                  onGetStarted?.call();
-                },
-                child: const Text('Get Started'),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              OutlinedButton(
-                onPressed: () {
-                  debugPrint('I Already Have an Account button pressed');
-                  onExistingAccount?.call();
-                },
-                child: const Text('I Already Have an Account'),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              const Text(
-                'Your real name and location are never shown publicly.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              const SizedBox(height: AppSpacing.xl),
+              ElevatedButton.icon(
+                onPressed: _isLoading ? null : _onGoogleLoginTap,
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.g_mobiledata_rounded, size: 28),
+                label: Text(
+                  _isLoading ? 'Checking account...' : 'Log in with Google',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.background,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                ),
               ),
             ],
           ),

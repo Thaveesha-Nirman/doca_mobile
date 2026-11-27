@@ -3,8 +3,7 @@ import 'dart:ui';
 import 'package:material_ui/material_ui.dart';
 
 import '../core/theme/app_theme.dart';
-
-import '../features/auth/presentation/screens/login_screen.dart';
+import '../features/auth/presentation/screens/auth_welcome_screen.dart';
 
 class DocaApp extends StatelessWidget {
   const DocaApp({super.key});
@@ -25,7 +24,7 @@ class DocaApp extends StatelessWidget {
         },
       ),
       theme: AppTheme.dark,
-      home: const LoginScreen(),
+      home: const AuthWelcomeScreen(),
     );
   }
 }
