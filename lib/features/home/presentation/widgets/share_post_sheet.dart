@@ -229,3 +229,28 @@ class _SharePostSheetBodyState extends State<_SharePostSheetBody> {
     );
   }
 }
+Future<bool> showRemoveShareDialog(BuildContext context) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Remove shared post?'),
+      content: const Text(
+        'Do you want to remove your shared post from the feed and your profile?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('No'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text(
+            'Yes, Remove',
+            style: TextStyle(color: Colors.redAccent),
+          ),
+        ),
+      ],
+    ),
+  );
+  return result == true;
+}

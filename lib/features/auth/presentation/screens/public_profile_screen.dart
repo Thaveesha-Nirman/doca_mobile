@@ -163,29 +163,50 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
 Future<void> _share(CommunityPost post) async {
-  String myAlias = 'You';
-  try {
-    final meRes = await ApiService.instance.getMyProfile();
-    myAlias = (meRes['user'] as Map<String, dynamic>?)?['alias']?.toString() ?? 'You';
-  } catch (_) {}
+    if (post.isSharedByMe) {
+      final confirm = await showRemoveShareDialog(context);
+      if (!confirm || !mounted) return;
+      try {
+        await ApiService.instance.unsharePost(post.id);
+        await _loadData();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Shared post removed')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Remove failed: $e')),
+        );
+      }
+      return;
+    }
 
-  if (!mounted) return;
-  final caption = await showSharePostSheet(
-    context: context,
-    userAlias: myAlias,
-    post: post,
-  );
-  if (caption == null || !mounted) return;
+    String myAlias = 'You';
+    try {
+      final meRes = await ApiService.instance.getMyProfile();
+      myAlias =
+          (meRes['user'] as Map<String, dynamic>?)?['alias']?.toString() ??
+              'You';
+    } catch (_) {}
 
-  try {
-    await ApiService.instance.toggleSharePost(post.id, caption: caption);
-    await _loadData();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Shared to the feed & your profile!')),
+    final caption = await showSharePostSheet(
+      context: context,
+      userAlias: myAlias,
+      post: post,
     );
-  } catch (_) {}
-}
+    if (caption == null || !mounted) return;
+
+    try {
+      await ApiService.instance.toggleSharePost(post.id, caption: caption);
+      await _loadData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Shared to the feed & your profile!')),
+      );
+    } catch (_) {}
+  }
  void _replacePost(List<CommunityPost> list, CommunityPost updated) {
   final idx = list.indexWhere((p) => p.id == updated.id);
   if (idx != -1) list[idx] = list[idx].withUpdatedPostData(updated);

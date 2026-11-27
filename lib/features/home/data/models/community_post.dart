@@ -24,6 +24,7 @@ class CommunityPost {
     this.journeyCount = 1,
     this.images = const [],
     this.isSensitive = false,
+    this.matchedTerms = const [],
     this.shareId,
     this.sharedByUid,
     this.sharedByAlias,
@@ -54,6 +55,7 @@ class CommunityPost {
   final int journeyCount;
   final List<String> images;
   final bool isSensitive;
+  final List<String> matchedTerms;
 
   // Facebook-style shared post metadata
   final String? shareId;
@@ -70,6 +72,11 @@ class CommunityPost {
     final rawImages = json['images'];
     final parsedImages = rawImages is List
         ? rawImages.map((e) => e.toString()).toList()
+        : <String>[];
+
+    final rawMatched = json['matchedTerms'];
+    final parsedMatched = rawMatched is List
+        ? rawMatched.map((e) => e.toString()).toList()
         : <String>[];
 
     final postId = (json['id'] ?? '').toString();
@@ -98,6 +105,7 @@ class CommunityPost {
       journeyCount: (json['journeyCount'] as num?)?.toInt() ?? 1,
       images: parsedImages,
       isSensitive: json['isSensitive'] == true,
+      matchedTerms: parsedMatched,
       shareId: sharedBy?['id']?.toString(),
       sharedByUid: sharedBy?['uid']?.toString(),
       sharedByAlias: sharedBy?['alias']?.toString(),
@@ -133,6 +141,7 @@ class CommunityPost {
       journeyCount: fresh.journeyCount,
       images: fresh.images,
       isSensitive: fresh.isSensitive,
+      matchedTerms: matchedTerms,
       shareId: shareId,
       sharedByUid: sharedByUid,
       sharedByAlias: sharedByAlias,
@@ -155,6 +164,7 @@ class CommunityPost {
     int? journeyCount,
     List<String>? images,
     bool? isSensitive,
+    List<String>? matchedTerms,
     String? shareCaption,
   }) {
     return CommunityPost(
@@ -180,6 +190,7 @@ class CommunityPost {
       journeyCount: journeyCount ?? this.journeyCount,
       images: images ?? this.images,
       isSensitive: isSensitive ?? this.isSensitive,
+      matchedTerms: matchedTerms ?? this.matchedTerms,
       shareId: shareId,
       sharedByUid: sharedByUid,
       sharedByAlias: sharedByAlias,

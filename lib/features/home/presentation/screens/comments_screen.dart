@@ -28,6 +28,21 @@ class _CommentsScreenState extends State<CommentsScreen> {
   bool _isLoading = true;
   bool _isSending = false;
   PostComment? _replyingTo;
+  String _sortBy = 'newest'; // newest | oldest | mostUpvoted | leastUpvoted
+
+  String get _sortLabel {
+    switch (_sortBy) {
+      case 'mostUpvoted':
+        return 'Most Upvoted';
+      case 'leastUpvoted':
+        return 'Least Upvoted';
+      case 'oldest':
+        return 'Oldest';
+      case 'newest':
+      default:
+        return 'Newest';
+    }
+  }
 
   @override
   void initState() {
@@ -45,7 +60,10 @@ class _CommentsScreenState extends State<CommentsScreen> {
   Future<void> _loadComments() async {
     setState(() => _isLoading = true);
     try {
-      final data = await ApiService.instance.getComments(widget.post.id);
+      final data = await ApiService.instance.getComments(
+        widget.post.id,
+        sort: _sortBy,
+      );
       final raw = (data['comments'] as List<dynamic>?) ?? [];
       final parsed = raw
           .map((e) => PostComment.fromJson(e as Map<String, dynamic>))
@@ -90,28 +108,96 @@ class _CommentsScreenState extends State<CommentsScreen> {
     }
   }
 
-  Future<void> _toggleReaction(PostComment comment, String type) async {
+  Future<void> _voteComment(PostComment comment, String type) async {
     try {
-      await ApiService.instance.toggleCommentReaction(comment.id, type);
+      await ApiService.instance.voteComment(comment.id, type);
       await _loadComments();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Reaction error: $e')),
+        SnackBar(content: Text('Vote error: $e')),
       );
     }
   }
 
-  Future<void> _deleteComment(PostComment comment) async {
+  Future<void> _deleteComment(PostComment comment, {required bool isReply}) async {
+    final hasReplies = !isReply && comment.replies.isNotEmpty;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isReply ? 'Delete reply?' : 'Delete comment?'),
+        content: Text(
+          hasReplies
+              ? 'This will permanently delete your comment and all its replies.'
+              : 'Are you sure you want to permanently delete this ${isReply ? 'reply' : 'comment'}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
     try {
       await ApiService.instance.deleteComment(comment.id);
       await _loadComments();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isReply ? 'Reply deleted' : 'Comment deleted')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Delete error: $e')),
       );
     }
+  }
+
+  PopupMenuItem<String> _buildSortMenuItem(
+    String value,
+    String label,
+    IconData icon,
+  ) {
+    final isSelected = _sortBy == value;
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: isSelected ? AppColors.primary : AppColors.textSecondary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+          if (isSelected)
+            const Icon(
+              Icons.check_rounded,
+              size: 16,
+              color: AppColors.primary,
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -127,10 +213,43 @@ class _CommentsScreenState extends State<CommentsScreen> {
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.textPrimary,
           title: Text('Comments ($_totalCount)'),
+          actions: [
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.filter_list_rounded),
+              tooltip: 'Sort comments ($_sortLabel)',
+              color: AppColors.surfaceElevated,
+              onSelected: (value) {
+                setState(() => _sortBy = value);
+                _loadComments();
+              },
+              itemBuilder: (_) => [
+                _buildSortMenuItem(
+                  'mostUpvoted',
+                  'Most Upvoted',
+                  Icons.arrow_upward_rounded,
+                ),
+                _buildSortMenuItem(
+                  'leastUpvoted',
+                  'Least Upvoted',
+                  Icons.arrow_downward_rounded,
+                ),
+                _buildSortMenuItem(
+                  'newest',
+                  'Newest First',
+                  Icons.schedule_rounded,
+                ),
+                _buildSortMenuItem(
+                  'oldest',
+                  'Oldest First',
+                  Icons.history_rounded,
+                ),
+              ],
+            ),
+          ],
         ),
         body: Column(
           children: [
-            // Post title summary strip
+            // Post title summary strip + active sort badge
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -138,23 +257,52 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 color: AppColors.surface,
                 border: Border(bottom: BorderSide(color: AppColors.border)),
               ),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.post.title,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.post.title,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'by ${widget.post.alias} · ${widget.post.timeAgo}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'by ${widget.post.alias} · ${widget.post.timeAgo}',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
+                  const SizedBox(width: AppSpacing.sm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Text(
+                      _sortLabel,
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
@@ -276,26 +424,49 @@ class _CommentsScreenState extends State<CommentsScreen> {
   }
 
   Widget _buildCommentThread(PostComment comment) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSingleComment(comment, isReply: false),
-        if (comment.replies.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 26),
-            child: Column(
-              children: comment.replies
-                  .map((r) => _buildSingleComment(r, isReply: true))
-                  .toList(),
-            ),
-          ),
-      ],
+    final hasReplies = comment.replies.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSingleComment(comment, isReply: false),
+          if (hasReplies)
+            ...List.generate(comment.replies.length, (index) {
+              final reply = comment.replies[index];
+              final isLast = index == comment.replies.length - 1;
+
+              return IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: 28,
+                      child: CustomPaint(
+                        painter: _ReplyLinePainter(
+                          isLast: isLast,
+                          color: AppColors.textSecondary.withValues(alpha: 0.35),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.sm),
+                        child: _buildSingleComment(reply, isReply: true),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
     );
   }
 
   Widget _buildSingleComment(PostComment c, {required bool isReply}) {
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: isReply ? AppColors.surfaceElevated : AppColors.surface,
@@ -328,12 +499,16 @@ class _CommentsScreenState extends State<CommentsScreen> {
               ),
               const Spacer(),
               if (c.isOwner)
-                GestureDetector(
-                  onTap: () => _deleteComment(c),
-                  child: const Icon(
-                    Icons.delete_outline,
-                    size: 16,
-                    color: Colors.redAccent,
+                InkWell(
+                  onTap: () => _deleteComment(c, isReply: isReply),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.delete_outline,
+                      size: 17,
+                      color: Colors.redAccent,
+                    ),
                   ),
                 ),
             ],
@@ -348,30 +523,14 @@ class _CommentsScreenState extends State<CommentsScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
             children: [
-              _reactionChip(
-                label: '👍 ${c.helpfulCount}',
-                active: c.myReactions.contains('helpful'),
-                onTap: () => _toggleReaction(c, 'helpful'),
-              ),
-              _reactionChip(
-                label: '❤️ ${c.heartCount}',
-                active: c.myReactions.contains('heart'),
-                onTap: () => _toggleReaction(c, 'heart'),
-              ),
-              _reactionChip(
-                label: '🤗 ${c.careCount}',
-                active: c.myReactions.contains('care'),
-                onTap: () => _toggleReaction(c, 'care'),
-              ),
+              _votePill(c),
+              const SizedBox(width: 8),
               TextButton(
                 onPressed: () => setState(() => _replyingTo = c),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   minimumSize: const Size(0, 28),
                 ),
                 child: const Text(
@@ -386,34 +545,107 @@ class _CommentsScreenState extends State<CommentsScreen> {
     );
   }
 
-  Widget _reactionChip({
-    required String label,
-    required bool active,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.pill),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: active
-              ? AppColors.primary.withValues(alpha: 0.2)
-              : Colors.white10,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          border: Border.all(
-            color: active ? AppColors.primary : AppColors.border,
+  Widget _votePill(PostComment c) {
+    final isUp = c.userVote == 'up';
+    final isDown = c.userVote == 'down';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => _voteComment(c, 'up'),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            child: Padding(
+              padding: const EdgeInsets.all(3),
+              child: Icon(
+                Icons.arrow_upward_rounded,
+                size: 16,
+                color: isUp ? AppColors.primary : AppColors.textPrimary,
+              ),
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? AppColors.primary : AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            child: Text(
+              '${c.votes}',
+              style: TextStyle(
+                color: isUp
+                    ? AppColors.primary
+                    : isDown
+                        ? Colors.redAccent
+                        : AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
-        ),
+          InkWell(
+            onTap: () => _voteComment(c, 'down'),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            child: Padding(
+              padding: const EdgeInsets.all(3),
+              child: Icon(
+                Icons.arrow_downward_rounded,
+                size: 16,
+                color: isDown ? Colors.redAccent : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+}
+
+class _ReplyLinePainter extends CustomPainter {
+  const _ReplyLinePainter({
+    required this.isLast,
+    required this.color,
+  });
+
+  final bool isLast;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    const double lineX = 12;
+    const double curveY = 30;
+    const double radius = 10;
+
+    // L-shaped branch from top into the reply card
+    final branchPath = Path()
+      ..moveTo(lineX, 0)
+      ..lineTo(lineX, curveY - radius)
+      ..quadraticBezierTo(lineX, curveY, lineX + radius, curveY)
+      ..lineTo(size.width, curveY);
+
+    canvas.drawPath(branchPath, paint);
+
+    // Continue the vertical line down if there is another reply below
+    if (!isLast) {
+      canvas.drawLine(
+        const Offset(lineX, curveY - radius),
+        Offset(lineX, size.height),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReplyLinePainter oldDelegate) {
+    return oldDelegate.isLast != isLast || oldDelegate.color != color;
   }
 }

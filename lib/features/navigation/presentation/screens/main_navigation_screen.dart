@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/services/api_service.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/screens/profile_screen.dart';
 import '../../../home/presentation/screens/home_screen.dart';
@@ -15,6 +17,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
+  int _unreadNotifications = 0;
 
   static const _screens = [
     HomeScreen(),
@@ -22,6 +25,45 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ScanScreen(),
     ProfileScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    PushNotificationService.instance.registerTokenWithBackend();
+    PushNotificationService.instance.onNotificationReceived = _refreshUnread;
+    _refreshUnread();
+  }
+
+  @override
+  void dispose() {
+    PushNotificationService.instance.onNotificationReceived = null;
+    super.dispose();
+  }
+
+  Future<void> _refreshUnread() async {
+    try {
+      final res = await ApiService.instance.getNotifications();
+      final count = (res['unreadCount'] as num?)?.toInt() ?? 0;
+      if (mounted) {
+        setState(() => _unreadNotifications = count);
+      }
+    } catch (_) {}
+  }
+
+  Widget _buildInboxIcon(bool selected) {
+    final icon = Icon(
+      selected ? Icons.chat_bubble_rounded : Icons.chat_bubble_outline_rounded,
+      color: selected ? AppColors.primary : null,
+    );
+    if (_unreadNotifications <= 0) return icon;
+
+    return Badge(
+      label: Text(
+        _unreadNotifications > 99 ? '99+' : '$_unreadNotifications',
+      ),
+      child: icon,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,22 +79,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
           setState(() => _selectedIndex = index);
+          _refreshUnread();
         },
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home_rounded, color: AppColors.primary),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            selectedIcon: Icon(
-              Icons.chat_bubble_rounded,
-              color: AppColors.primary,
-            ),
+            icon: _buildInboxIcon(false),
+            selectedIcon: _buildInboxIcon(true),
             label: 'Inbox',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.center_focus_weak_rounded),
             selectedIcon: Icon(
               Icons.center_focus_strong_rounded,
@@ -60,7 +100,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
             label: 'Scanner',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
             selectedIcon: Icon(
               Icons.person_rounded,

@@ -19,6 +19,7 @@ class CommunityPostCard extends StatefulWidget {
     this.topic = '',
     this.images = const [],
     this.isSensitive = false,
+    this.matchedTerms = const [],
     this.userVote,
     this.sharesCount = 0,
     this.isSharedByMe = false,
@@ -58,6 +59,7 @@ class CommunityPostCard extends StatefulWidget {
   final int journeyCount;
   final List<String> images;
   final bool isSensitive;
+  final List<String> matchedTerms;
   final bool showOwnerJourneyActions;
 
   // Facebook-style shared post props
@@ -476,6 +478,45 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               ),
           ],
         ),
+
+        // Matched symptom indicator (shown during smart search/filtering)
+        if (widget.matchedTerms.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.tealAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(
+                color: Colors.tealAccent.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 13,
+                  color: Colors.tealAccent,
+                ),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    'Matched: ${widget.matchedTerms.join(' · ')}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.tealAccent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
         const SizedBox(height: AppSpacing.md),
 
         // 3. Title & Body

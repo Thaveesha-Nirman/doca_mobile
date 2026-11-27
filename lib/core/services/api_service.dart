@@ -23,7 +23,10 @@ class ApiService {
   ApiService._();
   static final ApiService instance = ApiService._();
 
+  static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
+
   String get _baseUrl {
+    if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
     if (kIsWeb) return 'http://localhost:5000/api';
     if (defaultTargetPlatform == TargetPlatform.android) {
       return 'http://10.0.2.2:5000/api';
@@ -152,6 +155,12 @@ class ApiService {
 Future<JsonList> getPosts({
     String tab = 'forYou',
     String query = '',
+    String? status,
+    Set<String> symptoms = const {},
+    String? bodyArea,
+    bool hasPhotosOnly = false,
+    bool journeysOnly = false,
+    String sortBy = '',
   }) async {
     final isFollowing = tab == 'following';
     final headers = isFollowing
@@ -165,8 +174,27 @@ Future<JsonList> getPosts({
     if (query.trim().isNotEmpty) {
       params['q'] = query.trim();
     }
+    if (status != null && status.trim().isNotEmpty) {
+      params['status'] = status.trim();
+    }
+    if (symptoms.isNotEmpty) {
+      params['symptoms'] = symptoms.join(',');
+    }
+    if (bodyArea != null && bodyArea.trim().isNotEmpty) {
+      params['bodyArea'] = bodyArea.trim();
+    }
+    if (hasPhotosOnly) {
+      params['hasPhotos'] = 'true';
+    }
+    if (journeysOnly) {
+      params['onlyJourneys'] = 'true';
+    }
+    if (sortBy.trim().isNotEmpty) {
+      params['sort'] = sortBy.trim();
+    }
 
-    final endpoint = isFollowing ? '$_baseUrl/posts/following' : '$_baseUrl/posts';
+    final endpoint =
+        isFollowing ? '$_baseUrl/posts/following' : '$_baseUrl/posts';
     final uri = Uri.parse(endpoint).replace(
       queryParameters: params.isEmpty ? null : params,
     );
@@ -288,6 +316,15 @@ Future<JsonList> getPosts({
     return _parseResponse(response);
   }
 
+  Future<JsonMap> unsharePost(String postId) async {
+    final headers = await _authHeaders();
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/posts/$postId/share'),
+      headers: headers,
+    );
+    return _parseResponse(response);
+  }
+
   Future<JsonMap> updateShareCaption(String shareId, String caption) async {
     final headers = await _authHeaders();
     final response = await http.patch(
@@ -309,11 +346,21 @@ Future<JsonList> getPosts({
 
   // ==================== COMMENTS & REACTIONS ====================
 
-  Future<JsonMap> getComments(String postId) async {
+ Future<JsonMap> getComments(String postId, {String sort = 'newest'}) async {
     final headers = await _optionalAuthHeaders();
-    final response = await http.get(
-      Uri.parse('$_baseUrl/posts/$postId/comments'),
+    final uri = Uri.parse('$_baseUrl/posts/$postId/comments').replace(
+      queryParameters: {'sort': sort},
+    );
+    final response = await http.get(uri, headers: headers);
+    return _parseResponse(response);
+  }
+
+  Future<JsonMap> voteComment(String commentId, String type) async {
+    final headers = await _authHeaders();
+    final response = await http.patch(
+      Uri.parse('$_baseUrl/comments/$commentId/vote'),
       headers: headers,
+      body: jsonEncode({'type': type}),
     );
     return _parseResponse(response);
   }
@@ -436,5 +483,25 @@ Future<JsonList> getPosts({
       body: jsonEncode({'body': body}),
     );
     return _parseResponse(response);
+  }
+
+  Future<void> registerFcmToken(String token) async {
+    final headers = await _authHeaders();
+    final response = await http.post(
+      Uri.parse('$_baseUrl/inbox/fcm-token'),
+      headers: headers,
+      body: jsonEncode({'token': token}),
+    );
+    _parseResponse(response);
+  }
+
+  Future<void> removeFcmToken(String token) async {
+    final headers = await _authHeaders();
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/inbox/fcm-token'),
+      headers: headers,
+      body: jsonEncode({'token': token}),
+    );
+    _parseResponse(response);
   }
 }

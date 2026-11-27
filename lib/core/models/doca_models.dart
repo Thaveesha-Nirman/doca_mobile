@@ -85,6 +85,9 @@ class PostComment {
     this.avatarId = 'avatar_01',
     required this.body,
     required this.timeAgo,
+    this.votes = 0,
+    this.userVote,
+    this.createdAt,
     this.helpfulCount = 0,
     this.heartCount = 0,
     this.careCount = 0,
@@ -101,6 +104,9 @@ class PostComment {
   final String avatarId;
   final String body;
   final String timeAgo;
+  final int votes;
+  final String? userVote;
+  final DateTime? createdAt;
   final int helpfulCount;
   final int heartCount;
   final int careCount;
@@ -125,6 +131,11 @@ class PostComment {
       avatarId: (json['avatarId'] ?? 'avatar_01').toString(),
       body: (json['body'] ?? '').toString(),
       timeAgo: formatTimeAgo(json['createdAt']?.toString()),
+      votes: (json['votes'] as num?)?.toInt() ?? 0,
+      userVote: json['userVote']?.toString(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
       helpfulCount: (reactions['helpful'] as num?)?.toInt() ?? 0,
       heartCount: (reactions['heart'] as num?)?.toInt() ?? 0,
       careCount: (reactions['care'] as num?)?.toInt() ?? 0,

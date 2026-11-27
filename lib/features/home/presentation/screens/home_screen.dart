@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/services/api_service.dart';
@@ -9,11 +11,10 @@ import '../../../auth/presentation/screens/public_profile_screen.dart';
 import '../../data/models/community_post.dart';
 import '../widgets/community_post_card.dart';
 import '../widgets/share_post_sheet.dart';
+import '../widgets/symptom_filter_sheet.dart';
 import 'comments_screen.dart';
 import 'create_post_screen.dart';
 import 'journey_timeline_screen.dart';
-
-
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,35 +26,89 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
 
   List<CommunityPost> _posts = [];
   bool _isLoading = true;
   String? _error;
   String _selectedTab = 'forYou'; // "forYou" | "following"
-  String? _statusFilter;
+  FeedFilterState _filters = const FeedFilterState();
   String _myAlias = 'You';
 
-@override
+  bool get _isSearchingOrFiltering =>
+      _searchController.text.trim().isNotEmpty || _filters.hasAny;
+
+  String get _activeSortLabel {
+    final effective = _filters.sortBy.isNotEmpty
+        ? _filters.sortBy
+        : (_searchController.text.trim().isNotEmpty ||
+                _filters.symptoms.isNotEmpty ||
+                _filters.bodyArea != null)
+            ? 'relevance'
+            : 'newest';
+
+    switch (effective) {
+      case 'relevance':
+        return 'Best Match';
+      case 'top':
+        return 'Most Helpful';
+      case 'journeys':
+        return 'Most Updates';
+      case 'newest':
+      default:
+        return 'Newest';
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     _loadFeed();
     _loadMyAlias();
   }
-    Future<void> _loadMyAlias() async {
-  try {
-    final res = await ApiService.instance.getMyProfile();
-    final alias = (res['user'] as Map<String, dynamic>?)?['alias']?.toString();
-    if (alias != null && alias.isNotEmpty && mounted) {
-      setState(() => _myAlias = alias);
-    }
-  } catch (_) {}
-}
-  
+
+  Future<void> _loadMyAlias() async {
+    try {
+      final res = await ApiService.instance.getMyProfile();
+      final alias =
+          (res['user'] as Map<String, dynamic>?)?['alias']?.toString();
+      if (alias != null && alias.isNotEmpty && mounted) {
+        setState(() => _myAlias = alias);
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _loadFeed();
+    });
+  }
+
+  Future<void> _openFilterSheet() async {
+    final updated = await showSymptomFilterSheet(
+      context: context,
+      initial: _filters,
+    );
+    if (updated != null && mounted) {
+      setState(() => _filters = updated);
+      await _loadFeed();
+    }
+  }
+
+  void _clearAllFilters() {
+    _searchDebounce?.cancel();
+    _searchController.clear();
+    setState(() => _filters = const FeedFilterState());
+    _loadFeed();
   }
 
   Future<void> _loadFeed() async {
@@ -66,6 +121,12 @@ class _HomeScreenState extends State<HomeScreen> {
       final rawList = await ApiService.instance.getPosts(
         tab: _selectedTab,
         query: _searchController.text.trim(),
+        status: _filters.status,
+        symptoms: _filters.symptoms,
+        bodyArea: _filters.bodyArea,
+        hasPhotosOnly: _filters.hasPhotosOnly,
+        journeysOnly: _filters.journeysOnly,
+        sortBy: _filters.sortBy,
       );
       final fetched = rawList
           .map((item) => CommunityPost.fromJson(item as Map<String, dynamic>))
@@ -83,11 +144,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
     }
-  }
-
-  List<CommunityPost> get _visiblePosts {
-    if (_statusFilter == null) return _posts;
-    return _posts.where((p) => p.status == _statusFilter).toList();
   }
 
   Future<void> _openCreatePost() async {
@@ -109,7 +165,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final fresh = CommunityPost.fromJson(res['post'] as Map<String, dynamic>);
       if (!mounted) return;
       setState(() {
-        // Update both the original card and any shared cards for this same post
         _posts = _posts
             .map((p) => p.id == post.id ? p.withUpdatedPostData(fresh) : p)
             .toList();
@@ -122,121 +177,141 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-Future<void> _handleShare(CommunityPost post) async {
-  final caption = await showSharePostSheet(
-    context: context,
-    userAlias: _myAlias,
-    post: post,
-  );
-  if (caption == null || !mounted) return;
+  Future<void> _handleShare(CommunityPost post) async {
+    if (post.isSharedByMe) {
+      final confirm = await showRemoveShareDialog(context);
+      if (!confirm || !mounted) return;
+      try {
+        await ApiService.instance.unsharePost(post.id);
+        await _loadFeed();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Shared post removed')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Remove failed: $e')),
+        );
+      }
+      return;
+    }
 
-  try {
-    await ApiService.instance.toggleSharePost(post.id, caption: caption);
-    await _loadFeed();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Shared to the feed & your profile!')),
-    );
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Share failed: $e')),
-    );
-  }
-}
-
-Future<void> _handleEdit(CommunityPost post) async {
-  if (post.isSharedPost) {
-    if (post.shareId == null) return;
-    final newCaption = await showSharePostSheet(
+    final caption = await showSharePostSheet(
       context: context,
       userAlias: _myAlias,
       post: post,
-      initialCaption: post.shareCaption,
-      isEditing: true,
     );
-    if (newCaption == null || !mounted) return;
+    if (caption == null || !mounted) return;
 
     try {
-      await ApiService.instance.updateShareCaption(post.shareId!, newCaption);
+      await ApiService.instance.toggleSharePost(post.id, caption: caption);
       await _loadFeed();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Caption updated!')),
+        const SnackBar(content: Text('Shared to the feed & your profile!')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Update failed: $e')),
+        SnackBar(content: Text('Share failed: $e')),
       );
     }
-    return;
   }
 
-  final updated = await Navigator.of(context).push<CommunityPost>(
-    MaterialPageRoute(
-      builder: (_) => CreatePostScreen(editingPost: post),
-    ),
-  );
-  if (updated != null && mounted) {
-    await _loadFeed();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Post updated!')),
-    );
-  }
-}
-
-Future<void> _handleDelete(CommunityPost post) async {
-  final isShare = post.isSharedPost;
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(isShare ? 'Delete shared post?' : 'Delete post?'),
-      content: Text(
-        isShare
-            ? 'This removes your shared post from the feed. The original post stays intact.'
-            : 'This will permanently delete your post.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text(
-            'Delete',
-            style: TextStyle(color: Colors.redAccent),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  if (confirm != true || !mounted) return;
-
-  try {
-    if (isShare) {
+  Future<void> _handleEdit(CommunityPost post) async {
+    if (post.isSharedPost) {
       if (post.shareId == null) return;
-      await ApiService.instance.deleteShare(post.shareId!);
-    } else {
-      await ApiService.instance.deletePost(post.id);
+      final newCaption = await showSharePostSheet(
+        context: context,
+        userAlias: _myAlias,
+        post: post,
+        initialCaption: post.shareCaption,
+        isEditing: true,
+      );
+      if (newCaption == null || !mounted) return;
+
+      try {
+        await ApiService.instance.updateShareCaption(post.shareId!, newCaption);
+        await _loadFeed();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Caption updated!')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Update failed: $e')),
+        );
+      }
+      return;
     }
-    await _loadFeed();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isShare ? 'Shared post deleted' : 'Post deleted'),
+
+    final updated = await Navigator.of(context).push<CommunityPost>(
+      MaterialPageRoute(
+        builder: (_) => CreatePostScreen(editingPost: post),
       ),
     );
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Delete failed: $e')),
-    );
+    if (updated != null && mounted) {
+      await _loadFeed();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post updated!')),
+      );
+    }
   }
-}
+
+  Future<void> _handleDelete(CommunityPost post) async {
+    final isShare = post.isSharedPost;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isShare ? 'Delete shared post?' : 'Delete post?'),
+        content: Text(
+          isShare
+              ? 'This removes your shared post from the feed. The original post stays intact.'
+              : 'This will permanently delete your post.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      if (isShare) {
+        if (post.shareId == null) return;
+        await ApiService.instance.deleteShare(post.shareId!);
+      } else {
+        await ApiService.instance.deletePost(post.id);
+      }
+      await _loadFeed();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isShare ? 'Shared post deleted' : 'Post deleted'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete failed: $e')),
+      );
+    }
+  }
+
   Future<void> _openComments(CommunityPost post) async {
     final updatedCount = await Navigator.of(context).push<int>(
       MaterialPageRoute(
@@ -250,9 +325,7 @@ Future<void> _handleDelete(CommunityPost post) async {
       setState(() {
         _posts = _posts
             .map(
-              (p) => p.id == post.id
-                  ? p.copyWith(comments: updatedCount)
-                  : p,
+              (p) => p.id == post.id ? p.copyWith(comments: updatedCount) : p,
             )
             .toList();
       });
@@ -303,8 +376,6 @@ Future<void> _handleDelete(CommunityPost post) async {
 
   @override
   Widget build(BuildContext context) {
-    final postsToShow = _visiblePosts;
-
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
@@ -314,38 +385,16 @@ Future<void> _handleDelete(CommunityPost post) async {
           children: [
             _buildTopBar(),
             _buildFeedTabs(),
-            if (_statusFilter != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: 6,
-                ),
-                color: AppColors.surface,
-                child: Row(
-                  children: [
-                    Text(
-                      'Filter: $_statusFilter',
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => setState(() => _statusFilter = null),
-                      child: const Text(
-                        'Clear',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            QuickSymptomFilterBar(
+              filters: _filters,
+              onFiltersChanged: (next) {
+                setState(() => _filters = next);
+                _loadFeed();
+              },
+              onOpenAllFilters: _openFilterSheet,
+            ),
+            if (_isSearchingOrFiltering && !_isLoading && _error == null)
+              _buildSearchSummaryStrip(),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _loadFeed,
@@ -373,41 +422,21 @@ Future<void> _handleDelete(CommunityPost post) async {
                               ),
                             ),
                           )
-                        : postsToShow.isEmpty
-                            ? ListView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 60,
-                                      horizontal: AppSpacing.xl,
-                                    ),
-                                    child: Text(
-                                      _selectedTab == 'following'
-                                          ? 'No posts or shares from people you follow yet.\nTap a username in "For You" and hit Follow!'
-                                          : 'No matching posts found. Tap + to share your journey!',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: AppColors.textSecondary,
-                                        height: 1.5,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              )
+                        : _posts.isEmpty
+                            ? _buildEmptyState()
                             : ListView.separated(
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 padding: const EdgeInsets.fromLTRB(
                                   AppSpacing.md,
-                                  AppSpacing.md,
+                                  AppSpacing.sm,
                                   AppSpacing.md,
                                   AppSpacing.xxl,
                                 ),
-                                itemCount: postsToShow.length,
+                                itemCount: _posts.length,
                                 separatorBuilder: (_, _) =>
                                     const SizedBox(height: AppSpacing.md),
                                 itemBuilder: (_, index) {
-                                  final post = postsToShow[index];
+                                  final post = _posts[index];
                                   return CommunityPostCard(
                                     key: ValueKey(post.feedItemId),
                                     alias: post.alias,
@@ -424,11 +453,14 @@ Future<void> _handleDelete(CommunityPost post) async {
                                     journeyCount: post.journeyCount,
                                     images: post.images,
                                     isSensitive: post.isSensitive,
+                                    matchedTerms: post.matchedTerms,
                                     sharedByAlias: post.sharedByAlias,
                                     shareCaption: post.shareCaption,
-canManage: post.isSharedPost ? post.isSharerMe : post.isOwner,
-onEdit: () => _handleEdit(post),
-onDelete: () => _handleDelete(post),
+                                    canManage: post.isSharedPost
+                                        ? post.isSharerMe
+                                        : post.isOwner,
+                                    onEdit: () => _handleEdit(post),
+                                    onDelete: () => _handleDelete(post),
                                     sharedTimeAgo: post.sharedTimeAgo,
                                     onSharerTap: () => _openSharer(post),
                                     onAuthorTap: () => _openAuthor(post),
@@ -445,6 +477,100 @@ onDelete: () => _handleDelete(post),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchSummaryStrip() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: 7,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          top: BorderSide(color: AppColors.border),
+          bottom: BorderSide(color: AppColors.border),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.auto_awesome_rounded,
+            size: 14,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '${_posts.length} matching ${_posts.length == 1 ? 'post' : 'posts'} · $_activeSortLabel',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: _clearAllFilters,
+            child: const Text(
+              'Reset all',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            vertical: 56,
+            horizontal: AppSpacing.xl,
+          ),
+          child: Column(
+            children: [
+              Icon(
+                _isSearchingOrFiltering
+                    ? Icons.search_off_rounded
+                    : Icons.forum_outlined,
+                size: 42,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                _isSearchingOrFiltering
+                    ? 'No posts matched those exact symptoms or filters.\nTry removing a filter or using simpler keywords.'
+                    : _selectedTab == 'following'
+                        ? 'No posts or shares from people you follow yet.\nTap a username in "For You" and hit Follow!'
+                        : 'No posts yet. Tap + to share your journey!',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+              if (_isSearchingOrFiltering) ...[
+                const SizedBox(height: AppSpacing.md),
+                OutlinedButton.icon(
+                  onPressed: _clearAllFilters,
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text('Clear Search & Filters'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -465,7 +591,7 @@ onDelete: () => _handleDelete(post),
           ),
           Expanded(
             child: SizedBox(
-              height: 42,
+              height: 44,
               child: TextField(
                 controller: _searchController,
                 style: const TextStyle(
@@ -473,13 +599,13 @@ onDelete: () => _handleDelete(post),
                   fontSize: 14,
                 ),
                 textInputAction: TextInputAction.search,
-                onSubmitted: (_) => _loadFeed(),
-                onChanged: (val) {
-                  setState(() {});
-                  if (val.trim().isEmpty) _loadFeed();
+                onSubmitted: (_) {
+                  _searchDebounce?.cancel();
+                  _loadFeed();
                 },
+                onChanged: _onSearchChanged,
                 decoration: InputDecoration(
-                  hintText: 'Search posts & descriptions...',
+                  hintText: 'Search symptoms (e.g. itchy red bumps)...',
                   hintStyle: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
@@ -489,19 +615,53 @@ onDelete: () => _handleDelete(post),
                     color: AppColors.textSecondary,
                     size: 20,
                   ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_searchController.text.isNotEmpty)
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
                           icon: const Icon(
                             Icons.close_rounded,
                             size: 18,
                             color: AppColors.textSecondary,
                           ),
                           onPressed: () {
+                            _searchDebounce?.cancel();
                             _searchController.clear();
+                            setState(() {});
                             _loadFeed();
                           },
-                        )
-                      : null,
+                        ),
+                      IconButton(
+                        tooltip: 'Filter by Symptoms',
+                        padding: const EdgeInsets.only(right: 6),
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                        onPressed: _openFilterSheet,
+                        icon: _filters.hasAny
+                            ? Badge(
+                                label: Text('${_filters.activeCount}'),
+                                child: const Icon(
+                                  Icons.tune_rounded,
+                                  size: 20,
+                                  color: AppColors.primary,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.tune_rounded,
+                                size: 20,
+                                color: AppColors.textSecondary,
+                              ),
+                      ),
+                    ],
+                  ),
                   filled: true,
                   fillColor: AppColors.surface,
                   contentPadding: const EdgeInsets.symmetric(vertical: 0),
@@ -637,8 +797,9 @@ onDelete: () => _handleDelete(post),
                 style: TextStyle(color: AppColors.textPrimary),
               ),
               onTap: () {
-                setState(() => _statusFilter = null);
+                setState(() => _filters = _filters.copyWith(clearStatus: true));
                 Navigator.of(context).pop();
+                _loadFeed();
               },
             ),
             ListTile(
@@ -648,8 +809,9 @@ onDelete: () => _handleDelete(post),
                 style: TextStyle(color: AppColors.textPrimary),
               ),
               onTap: () {
-                setState(() => _statusFilter = 'Asking');
+                setState(() => _filters = _filters.copyWith(status: 'Asking'));
                 Navigator.of(context).pop();
+                _loadFeed();
               },
             ),
             ListTile(
@@ -662,8 +824,9 @@ onDelete: () => _handleDelete(post),
                 style: TextStyle(color: AppColors.textPrimary),
               ),
               onTap: () {
-                setState(() => _statusFilter = 'Ongoing');
+                setState(() => _filters = _filters.copyWith(status: 'Ongoing'));
                 Navigator.of(context).pop();
+                _loadFeed();
               },
             ),
             ListTile(
@@ -676,8 +839,9 @@ onDelete: () => _handleDelete(post),
                 style: TextStyle(color: AppColors.textPrimary),
               ),
               onTap: () {
-                setState(() => _statusFilter = 'Healed');
+                setState(() => _filters = _filters.copyWith(status: 'Healed'));
                 Navigator.of(context).pop();
+                _loadFeed();
               },
             ),
           ],

@@ -99,6 +99,49 @@ class _InboxScreenState extends State<InboxScreen> {
     }
   }
 
+  IconData _notifIcon(String type) {
+    switch (type) {
+      case 'follow':
+        return Icons.person_add_alt_1_rounded;
+      case 'post_upvote':
+      case 'comment_upvote':
+        return Icons.arrow_upward_rounded;
+      case 'post_share':
+        return Icons.repeat_rounded;
+      case 'comment':
+      case 'reply':
+        return Icons.chat_bubble_outline_rounded;
+      case 'message':
+      case 'request_accepted':
+        return Icons.mark_chat_unread_outlined;
+      case 'message_request':
+        return Icons.mail_outline_rounded;
+      default:
+        return Icons.notifications_none_rounded;
+    }
+  }
+
+  Color _notifColor(String type) {
+    switch (type) {
+      case 'follow':
+        return Colors.lightBlueAccent;
+      case 'post_upvote':
+      case 'comment_upvote':
+        return AppColors.primary;
+      case 'post_share':
+        return Colors.greenAccent;
+      case 'comment':
+      case 'reply':
+        return Colors.orangeAccent;
+      case 'message':
+      case 'request_accepted':
+      case 'message_request':
+        return AppColors.secondary;
+      default:
+        return AppColors.primary;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -306,109 +349,137 @@ class _InboxScreenState extends State<InboxScreen> {
         final n = _notifications[idx];
         final isPendingReq =
             n.type == 'message_request' && n.requestStatus == 'pending';
+        final accent = _notifColor(n.type);
 
-        return Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(
-              color: n.isRead ? AppColors.border : AppColors.primary,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PublicProfileScreen(
-                            uid: n.actorUid,
-                            initialAlias: n.actorAlias,
-                          ),
-                        ),
-                      );
-                    },
-                    child: const CircleAvatar(
-                      radius: 18,
-                      backgroundColor: AppColors.surfaceElevated,
-                      child: Icon(
-                        Icons.notifications_none_rounded,
-                        color: AppColors.primary,
-                        size: 18,
-                      ),
-                    ),
+        return InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          onTap: () {
+            if ((n.type == 'message' || n.type == 'request_accepted') &&
+                n.referenceId != null) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(
+                    conversationId: n.referenceId!,
+                    otherAlias: n.actorAlias,
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      n.message,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                      ),
-                    ),
+                ),
+              );
+            } else if (n.type == 'follow') {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PublicProfileScreen(
+                    uid: n.actorUid,
+                    initialAlias: n.actorAlias,
                   ),
-                  Text(
-                    n.timeAgo,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
+                ),
+              );
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: n.isRead ? AppColors.border : AppColors.primary,
               ),
-              if (isPendingReq) ...[
-                const SizedBox(height: AppSpacing.md),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => _respondRequest(n, 'accept'),
-                        child: const Text('Accept'),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PublicProfileScreen(
+                              uid: n.actorUid,
+                              initialAlias: n.actorAlias,
+                            ),
+                          ),
+                        );
+                      },
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: accent.withValues(alpha: 0.16),
+                        child: Icon(
+                          _notifIcon(n.type),
+                          color: accent,
+                          size: 18,
+                        ),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _respondRequest(n, 'decline'),
-                        child: const Text('Decline'),
+                      child: Text(
+                        n.message,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      n.timeAgo,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
                       ),
                     ),
                   ],
                 ),
-              ] else if (n.type == 'message_request' &&
-                  n.requestStatus != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Status: ${n.requestStatus}',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ] else if (n.type == 'request_accepted' &&
-                  n.referenceId != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ChatScreen(
-                          conversationId: n.referenceId!,
-                          otherAlias: n.actorAlias,
+                if (isPendingReq) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => _respondRequest(n, 'accept'),
+                          child: const Text('Accept'),
                         ),
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.chat_outlined, size: 16),
-                  label: const Text('Open Chat'),
-                ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _respondRequest(n, 'decline'),
+                          child: const Text('Decline'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (n.type == 'message_request' &&
+                    n.requestStatus != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Status: ${n.requestStatus}',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ] else if ((n.type == 'request_accepted' ||
+                        n.type == 'message') &&
+                    n.referenceId != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                            conversationId: n.referenceId!,
+                            otherAlias: n.actorAlias,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.chat_outlined, size: 16),
+                    label: const Text('Open Chat'),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },

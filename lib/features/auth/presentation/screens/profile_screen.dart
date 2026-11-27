@@ -122,24 +122,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     } catch (_) {}
   }
+Future<void> _share(CommunityPost post) async {
+    if (post.isSharedByMe) {
+      final confirm = await showRemoveShareDialog(context);
+      if (!confirm || !mounted) return;
+      try {
+        await ApiService.instance.unsharePost(post.id);
+        await _loadAll();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Shared post removed')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Remove failed: $e')),
+        );
+      }
+      return;
+    }
 
- Future<void> _share(CommunityPost post) async {
-  final caption = await showSharePostSheet(
-    context: context,
-    userAlias: _profile?.alias ?? 'You',
-    post: post,
-  );
-  if (caption == null || !mounted) return;
-  try {
-    await ApiService.instance.toggleSharePost(post.id, caption: caption);
-    await _loadAll();
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Share failed: $e')),
+    final caption = await showSharePostSheet(
+      context: context,
+      userAlias: _profile?.alias ?? 'You',
+      post: post,
     );
+    if (caption == null || !mounted) return;
+    try {
+      await ApiService.instance.toggleSharePost(post.id, caption: caption);
+      await _loadAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Share failed: $e')),
+      );
+    }
   }
-}
 
 Future<void> _handleEdit(CommunityPost post, bool isShareTab) async {
   if (isShareTab) {
