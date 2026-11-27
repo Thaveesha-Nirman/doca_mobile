@@ -13,6 +13,8 @@ import 'comments_screen.dart';
 import 'create_post_screen.dart';
 import 'journey_timeline_screen.dart';
 
+
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -31,10 +33,12 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _statusFilter;
   String _myAlias = 'You';
 
-  @override
+@override
   void initState() {
     super.initState();
     _loadFeed();
+    _loadMyAlias();
+  }
     Future<void> _loadMyAlias() async {
   try {
     final res = await ApiService.instance.getMyProfile();
@@ -44,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   } catch (_) {}
 }
-  }
+  
 
   @override
   void dispose() {

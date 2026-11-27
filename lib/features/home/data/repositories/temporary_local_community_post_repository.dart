@@ -17,10 +17,7 @@ class TemporaryLocalCommunityPostRepository implements CommunityPostRepository {
         votes: 24,
         comments: 8,
         isSensitive: false,
-        rootPostId: null,
-        journeyId: null,
-        parentPostId: null,
-        createdAt: null,
+       
       ),
       CommunityPost(
         id: 'post_124',
@@ -34,10 +31,7 @@ class TemporaryLocalCommunityPostRepository implements CommunityPostRepository {
         votes: 67,
         comments: 19,
         isSensitive: true,
-        rootPostId: null,
-        journeyId: 'journey_124',
-        parentPostId: null,
-        createdAt: null,
+       
       ),
     ];
   }
