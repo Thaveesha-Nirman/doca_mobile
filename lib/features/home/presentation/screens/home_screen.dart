@@ -15,6 +15,7 @@ import '../widgets/symptom_filter_sheet.dart';
 import 'comments_screen.dart';
 import 'create_post_screen.dart';
 import 'journey_timeline_screen.dart';
+import 'post_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -312,6 +313,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _openOriginalPost(CommunityPost post) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => PostDetailScreen(
+          postId: post.id,
+          initialPost: post,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      await _loadFeed();
+    }
+  }
+
   Future<void> _openComments(CommunityPost post) async {
     final updatedCount = await Navigator.of(context).push<int>(
       MaterialPageRoute(
@@ -463,6 +478,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     onDelete: () => _handleDelete(post),
                                     sharedTimeAgo: post.sharedTimeAgo,
                                     onSharerTap: () => _openSharer(post),
+                                    onOpenOriginalPost: () =>
+                                        _openOriginalPost(post),
                                     onAuthorTap: () => _openAuthor(post),
                                     onViewJourney: () => _openJourney(post),
                                     onUpvote: () => _handleVote(post, 'up'),

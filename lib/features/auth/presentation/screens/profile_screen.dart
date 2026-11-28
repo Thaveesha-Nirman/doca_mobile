@@ -15,7 +15,7 @@ import 'auth_welcome_screen.dart';
 import 'edit_profile_screen.dart';
 import 'public_profile_screen.dart';
 import '../../../home/presentation/widgets/share_post_sheet.dart';
-
+import '../../../home/presentation/screens/post_detail_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -37,7 +37,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _loadAll();
   }
-
+Future<void> _openOriginalPost(CommunityPost post) async {
+  final changed = await Navigator.of(context).push<bool>(
+    MaterialPageRoute(
+      builder: (_) => PostDetailScreen(postId: post.id, initialPost: post),
+    ),
+  );
+  if (changed == true && mounted) {
+    await _loadAll();
+  }
+}
   Future<void> _loadAll() async {
     setState(() {
       _isLoading = true;
@@ -353,7 +362,7 @@ sharedTimeAgo: _activeTab == 1 ? post.sharedTimeAgo : null,
 shareCaption: _activeTab == 1 ? post.shareCaption : '',
 canManage: true,
 onEdit: () => _handleEdit(post, _activeTab == 1),
-onDelete: () => _handleDelete(post, _activeTab == 1),
+onDelete: () => _handleDelete(post, _activeTab == 1),onOpenOriginalPost: () => _openOriginalPost(post),
                                 showOwnerJourneyActions: _activeTab == 0,
                                 onAuthorTap: post.isOwner
                                     ? null

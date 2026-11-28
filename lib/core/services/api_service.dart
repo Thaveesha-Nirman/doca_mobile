@@ -204,6 +204,14 @@ Future<JsonList> getPosts({
     return (data['posts'] as JsonList?) ?? [];
   }
 
+Future<JsonMap> getPostById(String postId) async {
+    final headers = await _optionalAuthHeaders();
+    final response = await http.get(
+      Uri.parse('$_baseUrl/posts/$postId'),
+      headers: headers,
+    );
+    return _parseResponse(response);
+  }
   Future<JsonList> getMyPosts({bool onlyRoots = false}) async {
     final headers = await _authHeaders();
     final uri = Uri.parse('$_baseUrl/posts/mine').replace(

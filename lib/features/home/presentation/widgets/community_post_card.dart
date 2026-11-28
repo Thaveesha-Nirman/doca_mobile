@@ -33,6 +33,7 @@ class CommunityPostCard extends StatefulWidget {
     this.onEdit,
     this.onDelete,
     this.onSharerTap,
+    this.onOpenOriginalPost,
     this.onAuthorTap,
     this.onViewJourney,
     this.onAddJourney,
@@ -67,6 +68,7 @@ class CommunityPostCard extends StatefulWidget {
   final String shareCaption;
   final String? sharedTimeAgo;
   final VoidCallback? onSharerTap;
+  final VoidCallback? onOpenOriginalPost;
 
   // Owner-only 3-dot menu props
   final bool canManage;
@@ -211,16 +213,63 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
             const SizedBox(height: AppSpacing.md),
           ],
 
-          // Original Post Body (embedded when shared)
+          // Embedded Original Post Card (tappable to open full Original Post)
           if (_isSharedCard)
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onOpenOriginalPost,
                 borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(color: AppColors.border),
+                child: Ink(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildOriginalPostContent(decodedPhotos),
+                      if (widget.onOpenOriginalPost != null) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        Container(
+                          padding: const EdgeInsets.only(top: AppSpacing.sm),
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              top: BorderSide(color: AppColors.border),
+                            ),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.open_in_new_rounded,
+                                size: 14,
+                                color: AppColors.primary,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'View original post & comments',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Spacer(),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: AppColors.primary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-              child: _buildOriginalPostContent(decodedPhotos),
             )
           else
             _buildOriginalPostContent(decodedPhotos),
@@ -519,23 +568,32 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
 
         const SizedBox(height: AppSpacing.md),
 
-        // 3. Title & Body
-        Text(
-          widget.title,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            height: 1.3,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          widget.body,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 14,
-            height: 1.45,
+        // 3. Title & Body (tappable on regular posts too)
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: !_isSharedCard ? widget.onOpenOriginalPost : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.title,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                widget.body,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  height: 1.45,
+                ),
+              ),
+            ],
           ),
         ),
 

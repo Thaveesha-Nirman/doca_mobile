@@ -10,7 +10,7 @@ import '../../../home/presentation/screens/comments_screen.dart';
 import '../../../home/presentation/screens/journey_timeline_screen.dart';
 import '../../../home/presentation/widgets/community_post_card.dart';
 import '../../../home/presentation/widgets/share_post_sheet.dart';
-
+import '../../../home/presentation/screens/post_detail_screen.dart';
 class PublicProfileScreen extends StatefulWidget {
   const PublicProfileScreen({
     required this.uid,
@@ -41,7 +41,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     super.initState();
     _loadData();
   }
-
+Future<void> _openOriginalPost(CommunityPost post) async {
+  final changed = await Navigator.of(context).push<bool>(
+    MaterialPageRoute(
+      builder: (_) => PostDetailScreen(postId: post.id, initialPost: post),
+    ),
+  );
+  if (changed == true && mounted) {
+    await _loadData();
+  }
+}
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
@@ -297,7 +306,7 @@ Future<void> _share(CommunityPost post) async {
                               isSensitive: post.isSensitive,
                               key: ValueKey(post.feedItemId),
 sharedByAlias: _activeTab == 1 ? (post.sharedByAlias ?? _profile?.alias) : null,
-sharedTimeAgo: _activeTab == 1 ? post.sharedTimeAgo : null,
+sharedTimeAgo: _activeTab == 1 ? post.sharedTimeAgo : null,onOpenOriginalPost: () => _openOriginalPost(post),
 shareCaption: _activeTab == 1 ? post.shareCaption : '',
                               onViewJourney: () {
                                 Navigator.of(context).push(
