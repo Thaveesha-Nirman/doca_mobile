@@ -1,26 +1,51 @@
 {
   "project_info": {
-    "project_number": "916388507388",
-    "project_id": "skinit-6606b",
-    "storage_bucket": "skinit-6606b.firebasestorage.app"
+    "project_number": "508280718306",
+    "project_id": "doca-11996",
+    "storage_bucket": "doca-11996.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:916388507388:android:93afc42840d03f3e68f179",
+        "mobilesdk_app_id": "1:508280718306:android:b3e8a27201e6260ab6efbb",
         "android_client_info": {
           "package_name": "com.example.skinit_mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "508280718306-jffk3ap2bj23ktll4hdsur68q01t88et.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.skinit_mobile",
+            "certificate_hash": "68e8ee22be3466c66cc325c6b11da746e3e5911b"
+          }
+        },
+        {
+          "client_id": "508280718306-sts8ostu8rmqb1rvvj2fd96glppcahp3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyAyK7WSNwe0WaMRHiVeukMfAZq2Yax3PN0"
+          "current_key": "AIzaSyAemiq40zvUHeZGjSCexuFs1ssAYnFSlmY"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "508280718306-sts8ostu8rmqb1rvvj2fd96glppcahp3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "508280718306-ai89tqjji4og2al397ivi6p7dp0djn1q.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.skinitMobile"
+              }
+            }
+          ]
         }
       }
     }
