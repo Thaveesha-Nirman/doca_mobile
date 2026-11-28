@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -32,17 +34,20 @@ class PushNotificationService {
 
   bool _initialized = false;
   String? _currentToken;
+  Map<String, dynamic>? _pendingTapData;
 
-  /// Callback triggered whenever a foreground notification arrives
-  /// so the app can refresh unread badges live.
+  /// Fired when a foreground notification arrives (for unread badge refresh).
   VoidCallback? onNotificationReceived;
+
+  /// Fired when the user taps a notification in the phone's notification tray.
+  void Function(Map<String, dynamic> data)? onNotificationTapped;
 
   Future<void> initialize() async {
     if (_initialized || kIsWeb) return;
     _initialized = true;
 
     try {
-      // 1. Initialize local notifications for foreground Android banners
+      // 1. Initialize local notifications WITH tap handler
       const androidSettings =
           AndroidInitializationSettings('@mipmap/ic_launcher');
       const iosSettings = DarwinInitializationSettings(
@@ -55,7 +60,10 @@ class PushNotificationService {
         iOS: iosSettings,
       );
 
-      await _localNotifications.initialize(settings: initSettings);
+      await _localNotifications.initialize(
+        settings: initSettings,
+        onDidReceiveNotificationResponse: _handleLocalTap,
+      );
 
       // 2. Create high-importance channel + request Android 13+ permission
       final androidPlugin = _localNotifications
@@ -72,7 +80,7 @@ class PushNotificationService {
         sound: true,
       );
 
-      // 4. Show real phone tray banner when app is open in foreground
+      // 4. Foreground notification -> show tray banner WITH JSON payload
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         final title =
             message.notification?.title ?? message.data['title'] ?? 'Doca';
@@ -83,12 +91,34 @@ class PushNotificationService {
             id: message.hashCode,
             title: title.toString(),
             body: body.toString(),
+            payload: jsonEncode(message.data),
           );
         }
         onNotificationReceived?.call();
       });
 
-      // 5. Auto-sync if Firebase rotates the device token
+      // 5. Background tray tap -> app was minimized
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        _dispatchTap(message.data);
+      });
+
+      // 6. Cold-start tray tap -> app was completely closed
+      final initialMessage = await messaging.getInitialMessage();
+      if (initialMessage != null && initialMessage.data.isNotEmpty) {
+        _dispatchTap(initialMessage.data);
+      } else {
+        final launchDetails =
+            await _localNotifications.getNotificationAppLaunchDetails();
+        final payload = launchDetails?.notificationResponse?.payload;
+        if ((launchDetails?.didNotificationLaunchApp ?? false) &&
+            payload != null &&
+            payload.isNotEmpty) {
+          _decodeAndDispatch(payload);
+        }
+      }
+
+      // 7. Auto-sync if Firebase rotates the device token
+      // ignore: deprecated_member_use
       messaging.onTokenRefresh.listen((newToken) async {
         _currentToken = newToken;
         try {
@@ -100,10 +130,47 @@ class PushNotificationService {
     }
   }
 
+  /// Called by MainNavigationScreen once the user is signed in and ready to navigate.
+  void consumePendingTap() {
+    final pending = _pendingTapData;
+    if (pending != null && onNotificationTapped != null) {
+      _pendingTapData = null;
+      onNotificationTapped!.call(pending);
+    }
+  }
+
+  void _handleLocalTap(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) return;
+    _decodeAndDispatch(payload);
+  }
+
+  void _decodeAndDispatch(String rawPayload) {
+    try {
+      final decoded = jsonDecode(rawPayload);
+      if (decoded is Map<String, dynamic>) {
+        _dispatchTap(decoded);
+      }
+    } catch (e) {
+      debugPrint('Failed to decode notification payload: $e');
+    }
+  }
+
+  void _dispatchTap(Map<String, dynamic> data) {
+    if (data.isEmpty) return;
+    if (onNotificationTapped != null) {
+      onNotificationTapped!.call(data);
+    } else {
+      // Save until MainNavigationScreen mounts after auth check
+      _pendingTapData = Map<String, dynamic>.from(data);
+    }
+  }
+
   Future<void> registerTokenWithBackend() async {
     if (kIsWeb) return;
     try {
       await initialize();
+      // ignore: deprecated_member_use
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) return;
       _currentToken = token;
@@ -114,17 +181,39 @@ class PushNotificationService {
     }
   }
 
-  Future<void> unregisterToken() async {
-    if (kIsWeb || _currentToken == null) return;
+Future<void> unregisterToken() async {
+    _pendingTapData = null;
+    if (kIsWeb) return;
+
     try {
-      await ApiService.instance.removeFcmToken(_currentToken!);
-    } catch (_) {}
+      // Clear any old account banners sitting in the phone's notification tray
+      await _localNotifications.cancelAll();
+
+      // Fallback to fetching the device token if it wasn't cached in memory yet
+      final token =
+          _currentToken ??
+          // ignore: deprecated_member_use
+          await FirebaseMessaging.instance.getToken();
+
+      if (token != null && token.isNotEmpty) {
+        await ApiService.instance
+            .removeFcmToken(token)
+            .timeout(const Duration(seconds: 4));
+      }
+      _currentToken = null;
+      debugPrint('FCM token unregistered cleanly');
+    } catch (e) {
+      // Never block logout if the network or server is unreachable
+      _currentToken = null;
+      debugPrint('FCM token unregister skipped: $e');
+    }
   }
 
   Future<void> _showForegroundBanner({
     required int id,
     required String title,
     required String body,
+    String? payload,
   }) async {
     final androidDetails = AndroidNotificationDetails(
       _docaChannel.id,
@@ -149,6 +238,7 @@ class PushNotificationService {
         android: androidDetails,
         iOS: iosDetails,
       ),
+      payload: payload,
     );
   }
 }

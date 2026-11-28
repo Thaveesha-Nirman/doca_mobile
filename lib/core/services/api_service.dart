@@ -483,12 +483,39 @@ Future<JsonMap> getPostById(String postId) async {
     return (data['messages'] as JsonList?) ?? [];
   }
 
-  Future<JsonMap> sendMessage(String conversationId, String body) async {
+  Future<JsonMap> sendMessage(
+    String conversationId,
+    String body, {
+    Map<String, dynamic>? attachment,
+  }) async {
     final headers = await _authHeaders();
+    final payload = <String, dynamic>{'body': body};
+    if (attachment != null) {
+      payload['attachment'] = attachment;
+    }
     final response = await http.post(
       Uri.parse('$_baseUrl/inbox/conversations/$conversationId/messages'),
       headers: headers,
+      body: jsonEncode(payload),
+    );
+    return _parseResponse(response);
+  }
+
+  Future<JsonMap> editMessage(String messageId, String body) async {
+    final headers = await _authHeaders();
+    final response = await http.patch(
+      Uri.parse('$_baseUrl/inbox/messages/$messageId'),
+      headers: headers,
       body: jsonEncode({'body': body}),
+    );
+    return _parseResponse(response);
+  }
+
+  Future<JsonMap> deleteMessage(String messageId) async {
+    final headers = await _authHeaders();
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/inbox/messages/$messageId'),
+      headers: headers,
     );
     return _parseResponse(response);
   }

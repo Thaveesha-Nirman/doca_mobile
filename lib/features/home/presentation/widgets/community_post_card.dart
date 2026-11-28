@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import 'full_screen_photo_viewer.dart';
 
 class CommunityPostCard extends StatefulWidget {
   const CommunityPostCard({
@@ -597,7 +598,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           ),
         ),
 
-        // 4. Uploaded Photos
+        // 4. Uploaded Photos (tap any photo for full-screen pinch-to-zoom)
         if (decodedPhotos.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.md),
           _buildPhotosSection(decodedPhotos),
@@ -769,13 +770,40 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
     }
 
     if (photos.length == 1) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Image.memory(
-          photos.first,
-          width: double.infinity,
-          height: 220,
-          fit: BoxFit.cover,
+      return GestureDetector(
+        onTap: () => FullScreenPhotoViewer.open(
+          context,
+          photos: photos,
+          initialIndex: 0,
+        ),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              child: Image.memory(
+                photos.first,
+                width: double.infinity,
+                height: 220,
+                fit: BoxFit.cover,
+              ),
+            ),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: const Icon(
+                  Icons.open_in_full_rounded,
+                  color: Colors.white,
+                  size: 14,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -787,13 +815,46 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
         itemCount: photos.length,
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, index) {
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            child: Image.memory(
-              photos[index],
-              width: 220,
-              height: 180,
-              fit: BoxFit.cover,
+          return GestureDetector(
+            onTap: () => FullScreenPhotoViewer.open(
+              context,
+              photos: photos,
+              initialIndex: index,
+            ),
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  child: Image.memory(
+                    photos[index],
+                    width: 220,
+                    height: 180,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Text(
+                      '${index + 1}/${photos.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         },

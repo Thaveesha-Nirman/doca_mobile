@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../../core/models/doca_models.dart';
 import '../../../../core/services/api_service.dart';
 import '../../../../core/services/auth_service.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -10,12 +11,12 @@ import '../../../home/data/models/community_post.dart';
 import '../../../home/presentation/screens/comments_screen.dart';
 import '../../../home/presentation/screens/create_post_screen.dart';
 import '../../../home/presentation/screens/journey_timeline_screen.dart';
+import '../../../home/presentation/screens/post_detail_screen.dart';
 import '../../../home/presentation/widgets/community_post_card.dart';
+import '../../../home/presentation/widgets/share_post_sheet.dart';
 import 'auth_welcome_screen.dart';
 import 'edit_profile_screen.dart';
 import 'public_profile_screen.dart';
-import '../../../home/presentation/widgets/share_post_sheet.dart';
-import '../../../home/presentation/screens/post_detail_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,6 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<CommunityPost> _sharedPosts = [];
   int _activeTab = 0; // 0 = My Journeys, 1 = Shared Posts
   bool _isLoading = true;
+  bool _isLoggingOut = false;
   String? _error;
 
   @override
@@ -37,16 +39,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _loadAll();
   }
-Future<void> _openOriginalPost(CommunityPost post) async {
-  final changed = await Navigator.of(context).push<bool>(
-    MaterialPageRoute(
-      builder: (_) => PostDetailScreen(postId: post.id, initialPost: post),
-    ),
-  );
-  if (changed == true && mounted) {
-    await _loadAll();
+
+  Future<void> _openOriginalPost(CommunityPost post) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => PostDetailScreen(postId: post.id, initialPost: post),
+      ),
+    );
+    if (changed == true && mounted) {
+      await _loadAll();
+    }
   }
-}
+
   Future<void> _loadAll() async {
     setState(() {
       _isLoading = true;
@@ -131,7 +135,8 @@ Future<void> _openOriginalPost(CommunityPost post) async {
       });
     } catch (_) {}
   }
-Future<void> _share(CommunityPost post) async {
+
+  Future<void> _share(CommunityPost post) async {
     if (post.isSharedByMe) {
       final confirm = await showRemoveShareDialog(context);
       if (!confirm || !mounted) return;
@@ -168,94 +173,133 @@ Future<void> _share(CommunityPost post) async {
     }
   }
 
-Future<void> _handleEdit(CommunityPost post, bool isShareTab) async {
-  if (isShareTab) {
-    final shareId = post.shareId ?? 'legacy_${post.id}';
-    final newCaption = await showSharePostSheet(
-      context: context,
-      userAlias: _profile?.alias ?? 'You',
-      post: post,
-      initialCaption: post.shareCaption,
-      isEditing: true,
+  Future<void> _handleEdit(CommunityPost post, bool isShareTab) async {
+    if (isShareTab) {
+      final shareId = post.shareId ?? 'legacy_${post.id}';
+      final newCaption = await showSharePostSheet(
+        context: context,
+        userAlias: _profile?.alias ?? 'You',
+        post: post,
+        initialCaption: post.shareCaption,
+        isEditing: true,
+      );
+      if (newCaption == null || !mounted) return;
+      try {
+        await ApiService.instance.updateShareCaption(shareId, newCaption);
+        await _loadAll();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Update failed: $e')),
+        );
+      }
+      return;
+    }
+
+    final updated = await Navigator.of(context).push<CommunityPost>(
+      MaterialPageRoute(
+        builder: (_) => CreatePostScreen(editingPost: post),
+      ),
     );
-    if (newCaption == null || !mounted) return;
+    if (updated != null && mounted) {
+      await _loadAll();
+    }
+  }
+
+  Future<void> _handleDelete(CommunityPost post, bool isShareTab) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isShareTab ? 'Delete shared post?' : 'Delete post?'),
+        content: Text(
+          isShareTab
+              ? 'Remove this shared post from your profile and feed?'
+              : 'Permanently delete this post?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
     try {
-      await ApiService.instance.updateShareCaption(shareId, newCaption);
+      if (isShareTab) {
+        final shareId = post.shareId ?? 'legacy_${post.id}';
+        await ApiService.instance.deleteShare(shareId);
+      } else {
+        await ApiService.instance.deletePost(post.id);
+      }
       await _loadAll();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Update failed: $e')),
+        SnackBar(content: Text('Delete failed: $e')),
       );
     }
-    return;
   }
-
-  final updated = await Navigator.of(context).push<CommunityPost>(
-    MaterialPageRoute(
-      builder: (_) => CreatePostScreen(editingPost: post),
-    ),
-  );
-  if (updated != null && mounted) {
-    await _loadAll();
-  }
-}
-
-Future<void> _handleDelete(CommunityPost post, bool isShareTab) async {
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(isShareTab ? 'Delete shared post?' : 'Delete post?'),
-      content: Text(
-        isShareTab
-            ? 'Remove this shared post from your profile and feed?'
-            : 'Permanently delete this post?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text(
-            'Delete',
-            style: TextStyle(color: Colors.redAccent),
-          ),
-        ),
-      ],
-    ),
-  );
-  if (confirm != true || !mounted) return;
-
-  try {
-    if (isShareTab) {
-      final shareId = post.shareId ?? 'legacy_${post.id}';
-      await ApiService.instance.deleteShare(shareId);
-    } else {
-      await ApiService.instance.deletePost(post.id);
-    }
-    await _loadAll();
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Delete failed: $e')),
-    );
-  }
-}
 
   void _replacePost(List<CommunityPost> list, CommunityPost updated) {
-  final idx = list.indexWhere((p) => p.id == updated.id);
-  if (idx != -1) list[idx] = list[idx].withUpdatedPostData(updated);
-}
+    final idx = list.indexWhere((p) => p.id == updated.id);
+    if (idx != -1) list[idx] = list[idx].withUpdatedPostData(updated);
+  }
 
   Future<void> _logout() async {
-    await AuthService.instance.signOut();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AuthWelcomeScreen()),
-      (route) => false,
+    if (_isLoggingOut) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text(
+          'You will stop receiving notifications on this device until you sign back in.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Log Out',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
     );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() => _isLoggingOut = true);
+    try {
+      // 1. Remove this device's FCM token while Firebase auth is still valid
+      await PushNotificationService.instance.unregisterToken();
+      // 2. Sign out of Firebase
+      await AuthService.instance.signOut();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthWelcomeScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoggingOut = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Logout failed: $e')),
+      );
+    }
   }
 
   @override
@@ -278,9 +322,15 @@ Future<void> _handleDelete(CommunityPost post, bool isShareTab) async {
             icon: const Icon(Icons.settings_outlined),
           ),
           IconButton(
-            onPressed: _logout,
+            onPressed: _isLoggingOut ? null : _logout,
             tooltip: 'Log Out',
-            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+            icon: _isLoggingOut
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.logout_rounded, color: Colors.redAccent),
           ),
         ],
       ),
@@ -342,6 +392,7 @@ Future<void> _handleDelete(CommunityPost post, bool isShareTab) async {
                               padding:
                                   const EdgeInsets.only(bottom: AppSpacing.md),
                               child: CommunityPostCard(
+                                key: ValueKey(post.feedItemId),
                                 alias: post.alias,
                                 timeAgo: post.timeAgo,
                                 status: post.status,
@@ -356,13 +407,21 @@ Future<void> _handleDelete(CommunityPost post, bool isShareTab) async {
                                 journeyCount: post.journeyCount,
                                 images: post.images,
                                 isSensitive: post.isSensitive,
-                                key: ValueKey(post.feedItemId),
-sharedByAlias: _activeTab == 1 ? (post.sharedByAlias ?? _profile?.alias) : null,
-sharedTimeAgo: _activeTab == 1 ? post.sharedTimeAgo : null,
-shareCaption: _activeTab == 1 ? post.shareCaption : '',
-canManage: true,
-onEdit: () => _handleEdit(post, _activeTab == 1),
-onDelete: () => _handleDelete(post, _activeTab == 1),onOpenOriginalPost: () => _openOriginalPost(post),
+                                sharedByAlias: _activeTab == 1
+                                    ? (post.sharedByAlias ?? _profile?.alias)
+                                    : null,
+                                sharedTimeAgo: _activeTab == 1
+                                    ? post.sharedTimeAgo
+                                    : null,
+                                shareCaption:
+                                    _activeTab == 1 ? post.shareCaption : '',
+                                canManage: true,
+                                onEdit: () =>
+                                    _handleEdit(post, _activeTab == 1),
+                                onDelete: () =>
+                                    _handleDelete(post, _activeTab == 1),
+                                onOpenOriginalPost: () =>
+                                    _openOriginalPost(post),
                                 showOwnerJourneyActions: _activeTab == 0,
                                 onAuthorTap: post.isOwner
                                     ? null

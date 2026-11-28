@@ -45,8 +45,11 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    if (!kIsWeb && _googleInitialized) {
-      await GoogleSignIn.instance.signOut();
+    if (!kIsWeb) {
+      try {
+        await _ensureGoogleInitialized();
+        await GoogleSignIn.instance.signOut();
+      } catch (_) {}
     }
     await _auth.signOut();
   }

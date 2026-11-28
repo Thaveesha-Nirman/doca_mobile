@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/models/doca_models.dart';
@@ -6,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../auth/presentation/screens/public_profile_screen.dart';
+import '../../../home/presentation/screens/post_detail_screen.dart';
 import 'chat_screen.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -21,19 +24,36 @@ class _InboxScreenState extends State<InboxScreen> {
   List<AppNotification> _notifications = [];
   int _unreadCount = 0;
   bool _isLoading = true;
+  bool _isSilentRefreshing = false;
   String? _error;
+  Timer? _pollTimer;
+
+  int get _totalUnreadMessages =>
+      _conversations.fold(0, (sum, c) => sum + c.unreadCount);
 
   @override
   void initState() {
     super.initState();
-    _loadInbox();
+    _loadInbox(showLoader: true);
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _silentRefresh(),
+    );
   }
 
-  Future<void> _loadInbox() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadInbox({bool showLoader = false}) async {
+    if (showLoader) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final convosRaw = await ApiService.instance.getConversations();
@@ -50,6 +70,7 @@ class _InboxScreenState extends State<InboxScreen> {
             .toList();
         _unreadCount = (notifRes['unreadCount'] as num?)?.toInt() ?? 0;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -57,6 +78,78 @@ class _InboxScreenState extends State<InboxScreen> {
         _error = '$e';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _silentRefresh() async {
+    if (_isSilentRefreshing || _isLoading || !mounted) return;
+    _isSilentRefreshing = true;
+    try {
+      final convosRaw = await ApiService.instance.getConversations();
+      final notifRes = await ApiService.instance.getNotifications();
+      final notifRaw = (notifRes['notifications'] as List<dynamic>?) ?? [];
+
+      if (!mounted) return;
+      setState(() {
+        _conversations = convosRaw
+            .map((e) => ChatConversation.fromJson(e as Map<String, dynamic>))
+            .toList();
+        _notifications = notifRaw
+            .map((e) => AppNotification.fromJson(e as Map<String, dynamic>))
+            .toList();
+        _unreadCount = (notifRes['unreadCount'] as num?)?.toInt() ?? 0;
+      });
+    } catch (_) {
+      // Silent poll
+    } finally {
+      _isSilentRefreshing = false;
+    }
+  }
+
+  bool _isPostNotification(String type) {
+    return type == 'post_upvote' ||
+        type == 'post_share' ||
+        type == 'comment' ||
+        type == 'reply' ||
+        type == 'comment_upvote';
+  }
+
+  Future<void> _openNotification(AppNotification n) async {
+    final refId = n.referenceId?.trim() ?? '';
+
+    if ((n.type == 'message' || n.type == 'request_accepted') &&
+        refId.isNotEmpty) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            conversationId: refId,
+            otherAlias: n.actorAlias,
+          ),
+        ),
+      );
+      if (mounted) _loadInbox();
+      return;
+    }
+
+    if (_isPostNotification(n.type) && refId.isNotEmpty) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PostDetailScreen(postId: refId),
+        ),
+      );
+      return;
+    }
+
+    if ((n.type == 'follow' || n.type == 'message_request') &&
+        n.actorUid.isNotEmpty) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PublicProfileScreen(
+            uid: n.actorUid,
+            initialAlias: n.actorAlias,
+          ),
+        ),
+      );
     }
   }
 
@@ -78,7 +171,7 @@ class _InboxScreenState extends State<InboxScreen> {
             ),
           ),
         );
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => ChatScreen(
               conversationId: res['conversationId'].toString(),
@@ -86,6 +179,7 @@ class _InboxScreenState extends State<InboxScreen> {
             ),
           ),
         );
+        if (mounted) _loadInbox();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Message request declined.')),
@@ -156,7 +250,7 @@ class _InboxScreenState extends State<InboxScreen> {
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            onPressed: _loadInbox,
+            onPressed: () => _loadInbox(showLoader: false),
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
@@ -178,14 +272,14 @@ class _InboxScreenState extends State<InboxScreen> {
                             ),
                             const SizedBox(height: AppSpacing.md),
                             ElevatedButton(
-                              onPressed: _loadInbox,
+                              onPressed: () => _loadInbox(showLoader: true),
                               child: const Text('Retry'),
                             ),
                           ],
                         ),
                       )
                     : RefreshIndicator(
-                        onRefresh: _loadInbox,
+                        onRefresh: () => _loadInbox(showLoader: false),
                         child: _selectedTab == 0
                             ? _buildMessagesList()
                             : _buildNotificationsList(),
@@ -203,19 +297,14 @@ class _InboxScreenState extends State<InboxScreen> {
       ),
       child: Row(
         children: [
-          _tabItem('Messages (${_conversations.length})', 0),
-          _tabItem(
-            _unreadCount > 0
-                ? 'Notifications ($_unreadCount)'
-                : 'Notifications',
-            1,
-          ),
+          _tabItem('Messages', 0, badgeCount: _totalUnreadMessages),
+          _tabItem('Notifications', 1, badgeCount: _unreadCount),
         ],
       ),
     );
   }
 
-  Widget _tabItem(String label, int idx) {
+  Widget _tabItem(String label, int idx, {int badgeCount = 0}) {
     final active = _selectedTab == idx;
     return Expanded(
       child: InkWell(
@@ -237,13 +326,40 @@ class _InboxScreenState extends State<InboxScreen> {
             ),
           ),
           alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: active ? AppColors.textPrimary : AppColors.textSecondary,
-              fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-              fontSize: 14,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color:
+                      active ? AppColors.textPrimary : AppColors.textSecondary,
+                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              if (badgeCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    badgeCount > 99 ? '99+' : '$badgeCount',
+                    style: const TextStyle(
+                      color: AppColors.background,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -273,24 +389,33 @@ class _InboxScreenState extends State<InboxScreen> {
       separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
       itemBuilder: (_, idx) {
         final convo = _conversations[idx];
+        final isUnread = convo.hasUnread;
+
         return ListTile(
-          tileColor: AppColors.surface,
+          tileColor: isUnread ? AppColors.surfaceElevated : AppColors.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
-            side: const BorderSide(color: AppColors.border),
+            side: BorderSide(
+              color: isUnread
+                  ? AppColors.primary.withValues(alpha: 0.65)
+                  : AppColors.border,
+            ),
           ),
-          leading: const CircleAvatar(
-            backgroundColor: AppColors.primary,
+          leading: CircleAvatar(
+            backgroundColor: isUnread
+                ? AppColors.primary
+                : AppColors.primary.withValues(alpha: 0.2),
             child: Icon(
               Icons.person_outline_rounded,
-              color: AppColors.background,
+              color: isUnread ? AppColors.background : AppColors.primary,
             ),
           ),
           title: Text(
             convo.otherAlias,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
+              fontWeight: isUnread ? FontWeight.w900 : FontWeight.w600,
+              fontSize: 15,
             ),
           ),
           subtitle: Text(
@@ -299,14 +424,48 @@ class _InboxScreenState extends State<InboxScreen> {
                 : convo.lastMessageText,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-          trailing: Text(
-            convo.timeAgo,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
+            style: TextStyle(
+              color: isUnread ? AppColors.textPrimary : AppColors.textSecondary,
+              fontWeight: isUnread ? FontWeight.w700 : FontWeight.w400,
             ),
+          ),
+          trailing: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                convo.timeAgo,
+                style: TextStyle(
+                  color:
+                      isUnread ? AppColors.primary : AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: isUnread ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+              if (isUnread) ...[
+                const SizedBox(height: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    convo.unreadCount > 99 ? '99+' : '${convo.unreadCount}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.background,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           onTap: () async {
             await Navigator.of(context).push(
@@ -317,7 +476,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 ),
               ),
             );
-            _loadInbox();
+            if (mounted) _loadInbox(showLoader: false);
           },
         );
       },
@@ -353,28 +512,7 @@ class _InboxScreenState extends State<InboxScreen> {
 
         return InkWell(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          onTap: () {
-            if ((n.type == 'message' || n.type == 'request_accepted') &&
-                n.referenceId != null) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ChatScreen(
-                    conversationId: n.referenceId!,
-                    otherAlias: n.actorAlias,
-                  ),
-                ),
-              );
-            } else if (n.type == 'follow') {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PublicProfileScreen(
-                    uid: n.actorUid,
-                    initialAlias: n.actorAlias,
-                  ),
-                ),
-              );
-            }
-          },
+          onTap: () => _openNotification(n),
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
@@ -391,6 +529,7 @@ class _InboxScreenState extends State<InboxScreen> {
                   children: [
                     GestureDetector(
                       onTap: () {
+                        if (n.actorUid.isEmpty) return;
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => PublicProfileScreen(
@@ -428,6 +567,14 @@ class _InboxScreenState extends State<InboxScreen> {
                         fontSize: 11,
                       ),
                     ),
+                    if (!isPendingReq) ...[
+                      const SizedBox(width: 2),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: AppColors.textSecondary,
+                      ),
+                    ],
                   ],
                 ),
                 if (isPendingReq) ...[
@@ -464,16 +611,7 @@ class _InboxScreenState extends State<InboxScreen> {
                     n.referenceId != null) ...[
                   const SizedBox(height: AppSpacing.xs),
                   TextButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            conversationId: n.referenceId!,
-                            otherAlias: n.actorAlias,
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _openNotification(n),
                     icon: const Icon(Icons.chat_outlined, size: 16),
                     label: const Text('Open Chat'),
                   ),

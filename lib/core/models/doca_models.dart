@@ -10,6 +10,40 @@ String formatTimeAgo(String? isoDate) {
   return '${diff.inDays}d ago';
 }
 
+String formatClockTime(DateTime? dt) {
+  if (dt == null) return '';
+  final local = dt.toLocal();
+  final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  final period = local.hour >= 12 ? 'PM' : 'AM';
+  return '$hour12:$minute $period';
+}
+
+String formatFullTimestamp(DateTime? dt) {
+  if (dt == null) return 'Not yet';
+  final local = dt.toLocal();
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  final now = DateTime.now();
+  final sameDay = now.year == local.year &&
+      now.month == local.month &&
+      now.day == local.day;
+  final timeStr = formatClockTime(local);
+  if (sameDay) return 'Today, $timeStr';
+  return '${months[local.month - 1]} ${local.day}, $timeStr';
+}
+
+String formatFileSize(int bytes) {
+  if (bytes <= 0) return '';
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) {
+    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  }
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
 class UserProfile {
   const UserProfile({
     required this.uid,
@@ -197,6 +231,7 @@ class ChatConversation {
     this.otherAvatarId = 'avatar_01',
     required this.lastMessageText,
     required this.timeAgo,
+    this.unreadCount = 0,
   });
 
   final String id;
@@ -205,6 +240,9 @@ class ChatConversation {
   final String otherAvatarId;
   final String lastMessageText;
   final String timeAgo;
+  final int unreadCount;
+
+  bool get hasUnread => unreadCount > 0;
 
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
     final other = (json['otherUser'] as Map<String, dynamic>?) ?? {};
@@ -215,8 +253,48 @@ class ChatConversation {
       otherAvatarId: (other['avatarId'] ?? 'avatar_01').toString(),
       lastMessageText: (json['lastMessageText'] ?? '').toString(),
       timeAgo: formatTimeAgo(json['lastMessageAt']?.toString()),
+      unreadCount: (json['unreadCount'] as num?)?.toInt() ?? 0,
     );
   }
+}
+
+class ChatAttachment {
+  const ChatAttachment({
+    required this.type,
+    required this.name,
+    required this.mimeType,
+    required this.size,
+    required this.data,
+  });
+
+  final String type; // 'image' | 'file'
+  final String name;
+  final String mimeType;
+  final int size;
+  final String data; // base64
+
+  bool get isImage => type == 'image';
+  bool get isPdf =>
+      mimeType.toLowerCase().contains('pdf') ||
+      name.toLowerCase().endsWith('.pdf');
+
+  factory ChatAttachment.fromJson(Map<String, dynamic> json) {
+    return ChatAttachment(
+      type: (json['type'] ?? 'file').toString(),
+      name: (json['name'] ?? 'document').toString(),
+      mimeType: (json['mimeType'] ?? 'application/octet-stream').toString(),
+      size: (json['size'] as num?)?.toInt() ?? 0,
+      data: (json['data'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'name': name,
+        'mimeType': mimeType,
+        'size': size,
+        'data': data,
+      };
 }
 
 class ChatMessage {
@@ -227,6 +305,13 @@ class ChatMessage {
     required this.isMine,
     required this.body,
     required this.timeAgo,
+    this.attachment,
+    this.isEdited = false,
+    this.editedAt,
+    this.isDeleted = false,
+    this.createdAt,
+    this.deliveredAt,
+    this.seenAt,
   });
 
   final String id;
@@ -235,8 +320,21 @@ class ChatMessage {
   final bool isMine;
   final String body;
   final String timeAgo;
+  final ChatAttachment? attachment;
+  final bool isEdited;
+  final DateTime? editedAt;
+  final bool isDeleted;
+  final DateTime? createdAt;
+  final DateTime? deliveredAt;
+  final DateTime? seenAt;
+
+  bool get isSeen => seenAt != null;
+  bool get isDelivered => deliveredAt != null || seenAt != null;
+  String get sentClockTime =>
+      createdAt != null ? formatClockTime(createdAt) : timeAgo;
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final rawAtt = json['attachment'];
     return ChatMessage(
       id: (json['id'] ?? '').toString(),
       conversationId: (json['conversationId'] ?? '').toString(),
@@ -244,6 +342,23 @@ class ChatMessage {
       isMine: json['isMine'] == true,
       body: (json['body'] ?? '').toString(),
       timeAgo: formatTimeAgo(json['createdAt']?.toString()),
+      attachment: rawAtt is Map<String, dynamic>
+          ? ChatAttachment.fromJson(rawAtt)
+          : null,
+      isEdited: json['isEdited'] == true,
+      editedAt: json['editedAt'] != null
+          ? DateTime.tryParse(json['editedAt'].toString())
+          : null,
+      isDeleted: json['isDeleted'] == true,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
+      deliveredAt: json['deliveredAt'] != null
+          ? DateTime.tryParse(json['deliveredAt'].toString())
+          : null,
+      seenAt: json['seenAt'] != null
+          ? DateTime.tryParse(json['seenAt'].toString())
+          : null,
     );
   }
 }
